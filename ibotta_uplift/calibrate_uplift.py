@@ -20,6 +20,8 @@ def get_reg_scores(ice, y, tmt):
 
     hete = (ice-ice[0,:])
 
+    #if tmt is a binary get_dummies will not expand. turn into string and it will
+    tmt = [str(x) for x in tmt]
     temp_data = pd.DataFrame(hete.T*pd.get_dummies(tmt))
     temp_data = temp_data.iloc[:,1:]
     temp_data['base'] = ice[0,:]
@@ -126,8 +128,12 @@ class UpliftCalibration:
           uplift model does for each treatment
         """
 
-        self.reg_results = [get_reg_scores(
+        regression_results = [get_reg_scores(
             self.ice[:,:,index],
             self.y[:,index],
             self.tmt)
             for index in range(self.num_responses) ]
+        regression_results = pd.DataFrame(regression_results)
+        regression_results.columns = ['with_uplift_effects','without_uplift_effects']
+
+        self.regression_results = regression_results

@@ -110,7 +110,7 @@ class TestIbottaUplift(object):
         uplift_model = IbottaUplift()
         uplift_model.fit(x_no_noise, y_no_noise, tmt_no_noise.reshape(-1,1),
         n_jobs = 1)
-        oos_ice = uplift_model.predict_oos_ice()
+        oos_ice = uplift_model.predict_ice()
 
         assert np.sqrt(np.mean((oos_ice.mean(axis=1) - true_ATE )**2))<rmse_tolerance
 
