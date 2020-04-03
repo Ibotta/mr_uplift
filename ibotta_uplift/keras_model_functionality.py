@@ -12,7 +12,7 @@ from sklearn.metrics import make_scorer
 from sklearn.model_selection import GridSearchCV
 
 
-def missing_mse_loss_multi_output(yTrue,yPred):
+def missing_mse_loss_multi_output(yTrue, yPred):
     """Returns Loss for Keras. This is essentially a multi-output regression that
     ignores missing data. It's similar in concept to matrix factorization with
     missing data in that it only includes non missing values in loss function.
@@ -22,11 +22,13 @@ def missing_mse_loss_multi_output(yTrue,yPred):
     Returns:
         Function to minimize
     """
-    equals = K.cast(K.not_equal(yTrue, K.cast_to_floatx(-999.0)), dtype='float32')
-    output = (yTrue * equals  - yPred*equals )**2
+    equals = K.cast(K.not_equal(
+        yTrue, K.cast_to_floatx(-999.0)), dtype='float32')
+    output = (yTrue * equals - yPred * equals)**2
     return K.mean(output)
 
-def missing_mse_loss_multi_output_np(yTrue,yPred):
+
+def missing_mse_loss_multi_output_np(yTrue, yPred):
     """Returns Loss for Keras. This is essentially a multi-output regression that
     ignores missing data. It's similar in concept to matrix factorization with
     missing data in that it only includes non missing values in loss function.
@@ -37,17 +39,22 @@ def missing_mse_loss_multi_output_np(yTrue,yPred):
     Returns:
         Function to minimize
     """
-    equals = (yTrue != -999.0)*1
-    output = (yTrue * equals  - yPred*equals )**2
+    equals = (yTrue != -999.0) * 1
+    output = (yTrue * equals - yPred * equals)**2
     return np.mean(output)
 
 
-missing_mse_loss_multi_output_scorer = make_scorer(missing_mse_loss_multi_output_np, greater_is_better = False)
+missing_mse_loss_multi_output_scorer = make_scorer(
+    missing_mse_loss_multi_output_np, greater_is_better=False)
 
 
-
-def hete_missing_mse_loss_multi_output(input_shape, output_shape, num_nodes = 256, dropout = .5, num_layers = 1,
-    activation='relu'):
+def hete_missing_mse_loss_multi_output(
+        input_shape,
+        output_shape,
+        num_nodes=256,
+        dropout=.5,
+        num_layers=1,
+        activation='relu'):
     """Returns standard neural network
     Args:
         input_shape (int): number of features in training dataset
@@ -64,16 +71,20 @@ def hete_missing_mse_loss_multi_output(input_shape, output_shape, num_nodes = 25
     x = Dropout(dropout)(x)
 
     if(num_layers > 1):
-      for q in range(num_layers - 1):
-        x = Dense(num_nodes, activation=activation)(x)
-        x = Dropout(dropout)(x)
+        for q in range(num_layers - 1):
+            x = Dense(num_nodes, activation=activation)(x)
+            x = Dropout(dropout)(x)
 
     x = Dense(output_shape)(x)
 
     model = Model(input, x)
-    model.compile(optimizer='rmsprop', loss=missing_mse_loss_multi_output, metrics = [missing_mse_loss_multi_output])
+    model.compile(
+        optimizer='rmsprop',
+        loss=missing_mse_loss_multi_output,
+        metrics=[missing_mse_loss_multi_output])
 
     return model
+
 
 def save_keras_model(model, location):
     """Saves keras model to location
@@ -103,13 +114,12 @@ def load_keras_model(location, use_tf=False):
             return load_model(f.name, compile=False)
 
 
-
-def train_model_multi_output_w_tmt(x, y, param_grid=None, n_jobs = -1, cv = 5):
+def train_model_multi_output_w_tmt(x, y, param_grid=None, n_jobs=-1, cv=5):
     """Trains and does gridsearch on a keras nnet. Response can be multi output
     Args:
         x (np array): explanatory variables
         y (np array): response variables. could be more than 1
-        n_jobs (int): number of cores to run on. 
+        n_jobs (int): number of cores to run on.
         cv (int): number of cross vaildation_folds
     Returns:
         Gridsearched multi output model

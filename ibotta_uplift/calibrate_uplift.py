@@ -18,25 +18,26 @@ def get_reg_scores(ice, y, tmt):
         It returns in sample scores of each model
     """
 
-    hete = (ice-ice[0,:])
+    hete = (ice - ice[0, :])
 
-    #if tmt is a binary get_dummies will not expand. turn into string and it will
+    # if tmt is a binary get_dummies will not expand. turn into string and it
+    # will
     tmt = [str(x) for x in tmt]
-    temp_data = pd.DataFrame(hete.T*pd.get_dummies(tmt))
-    temp_data = temp_data.iloc[:,1:]
-    temp_data['base'] = ice[0,:]
+    temp_data = pd.DataFrame(hete.T * pd.get_dummies(tmt))
+    temp_data = temp_data.iloc[:, 1:]
+    temp_data['base'] = ice[0, :]
 
     reg = LinearRegression()
     reg.fit(temp_data, y)
 
     reg_base = LinearRegression()
-    reg_base.fit(temp_data['base'].values.reshape(-1,1), y)
+    reg_base.fit(temp_data['base'].values.reshape(-1, 1), y)
 
     score_hete = reg.score(temp_data, y)
-    score_base = reg_base.score(temp_data['base'].values.reshape(-1,1), y.reshape(-1,1))
+    score_base = reg_base.score(
+        temp_data['base'].values.reshape(-1, 1), y.reshape(-1, 1))
 
     return [score_hete, score_base]
-
 
 
 def build_calibration_models(ice, y, tmt):
@@ -52,23 +53,20 @@ def build_calibration_models(ice, y, tmt):
       b2*y_1_hat + ... + b(p+1)*(tmt == 0) + ...
     """
 
-    temp_data = pd.DataFrame(ice.T*pd.get_dummies(tmt.reshape(-1,)))
+    temp_data = pd.DataFrame(ice.T * pd.get_dummies(tmt.reshape(-1,)))
     temp_dummies = pd.get_dummies(tmt.reshape(-1,))
-    temp_data = pd.concat([temp_data, temp_dummies],axis=1)
+    temp_data = pd.concat([temp_data, temp_dummies], axis=1)
 
-    reg = LinearRegression(fit_intercept = False)
+    reg = LinearRegression(fit_intercept=False)
     reg.fit(temp_data, y)
 
     return reg
-
-
 
 
 class UpliftCalibration:
     """A calibration class for uplift models. Currently has a .fit and
     .transform method to get calibrated effects for each treatment.
     """
-
 
     def fit(self, ice, y, tmt):
         """Fits Calibrated HETE Models.
@@ -89,17 +87,16 @@ class UpliftCalibration:
         self.num_tmts = len(np.unique(tmt))
         self.num_responses = y.shape[1]
 
-
         self.regs = [build_calibration_models(
-            self.ice[:,:,index],
-            self.y[:,index],
+            self.ice[:, :, index],
+            self.y[:, index],
             self.tmt)
-            for index in range(self.num_responses) ]
+            for index in range(self.num_responses)]
 
-        calibrated_coefs = np.array([self.regs[x].coef_ for x in range(self.num_responses)])
-        self.calibrated_coefs = calibrated_coefs[:,:self.num_tmts]
-        self.calibrated_intercepts = calibrated_coefs[:,self.num_tmts:]
-
+        calibrated_coefs = np.array(
+            [self.regs[x].coef_ for x in range(self.num_responses)])
+        self.calibrated_coefs = calibrated_coefs[:, :self.num_tmts]
+        self.calibrated_intercepts = calibrated_coefs[:, self.num_tmts:]
 
     def transform(self, new_ice):
         """Transforms counterfactual predictions to be calibrated
@@ -112,13 +109,12 @@ class UpliftCalibration:
           to this treatment.
         """
 
-        counters_scaled_diff_mats_calibrated = [self.calibrated_intercepts.T + new_ice[:,x,:]*self.calibrated_coefs.T for x in
-        range(new_ice.shape[1])]
-        counters_scaled_diff_mats_calibrated = np.swapaxes(np.array(counters_scaled_diff_mats_calibrated),1,0)
+        counters_scaled_diff_mats_calibrated = [
+            self.calibrated_intercepts.T + new_ice[:, x, :] * self.calibrated_coefs.T for x in range(new_ice.shape[1])]
+        counters_scaled_diff_mats_calibrated = np.swapaxes(
+            np.array(counters_scaled_diff_mats_calibrated), 1, 0)
 
         return counters_scaled_diff_mats_calibrated
-
-
 
     def uplift_scores(self):
         """Calculates increase in Scores of using HETE vs control
@@ -129,11 +125,13 @@ class UpliftCalibration:
         """
 
         regression_results = [get_reg_scores(
-            self.ice[:,:,index],
-            self.y[:,index],
+            self.ice[:, :, index],
+            self.y[:, index],
             self.tmt)
-            for index in range(self.num_responses) ]
+            for index in range(self.num_responses)]
         regression_results = pd.DataFrame(regression_results)
-        regression_results.columns = ['with_uplift_effects','without_uplift_effects']
+        regression_results.columns = [
+            'with_uplift_effects',
+            'without_uplift_effects']
 
         self.regression_results = regression_results

@@ -15,6 +15,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from ibotta_uplift.calibrate_uplift import UpliftCalibration
 
+
 def get_t_data(values, num_obs):
     """expands single treatment to many rows.
     Args:
@@ -53,7 +54,7 @@ class IbottaUplift:
         self.__dict__.update(kw)
 
     def fit(self, x, y, t, test_size=0.7, random_state=22, param_grid=None,
-            n_jobs = -1, cv = 5):
+            n_jobs=-1, cv=5):
         """Fits a Neural Network Model of the form y ~ f(t,x). Scales all variables
         and creates seperate transformers for y, t, and x. Assigns train / test split.
 
@@ -123,8 +124,8 @@ class IbottaUplift:
 
         net = train_model_multi_output_w_tmt(x_t_train, y_train_scaled,
                                              param_grid=param_grid,
-                                             n_jobs = n_jobs,
-                                             cv = cv)
+                                             n_jobs=n_jobs,
+                                             cv=cv)
 
         self.best_score_net = net.best_score_
         self.best_params_net = net.best_params_
@@ -151,7 +152,7 @@ class IbottaUplift:
 
         return scaled_preds
 
-    def predict_ice(self, x=None, treatments=None, calibrator = False):
+    def predict_ice(self, x=None, treatments=None, calibrator=False):
         """Predicts all counterfactuals with new data. If no new data is
             assigned it will use test set data.
             The 'ice' refers to Individual Conditional Expectations. A better
@@ -187,7 +188,7 @@ class IbottaUplift:
         return ice
 
     def get_erupt_curves(self, x=None, y=None, t=None, objective_weights=None,
-                         treatments=None, calibrator = False):
+                         treatments=None, calibrator=False):
         """Returns ERUPT Curves and distributions. If either x or y is not inputted
         it will use test data.
 
@@ -288,9 +289,8 @@ class IbottaUplift:
 
         return uplift_class
 
-
-    def predict_optimal_treatments(self, x, weights, treatments = None,
-        calibrator = False):
+    def predict_optimal_treatments(self, x, weights, treatments=None,
+                                   calibrator=False):
         """Predicts optimal treatments given explanatory variables and weights
 
         Args:
@@ -313,16 +313,17 @@ class IbottaUplift:
         if self.num_responses > 1:
 
             if treatments.shape[1] > 1:
-                unique_t = np.array([reduce_concat(x, '_') for x in treatments])
+                unique_t = np.array([reduce_concat(x, '_')
+                                     for x in treatments])
             else:
                 unique_t = treatments
             best_treatments = get_best_tmts(weights, ice, treatments)
         else:
-            best_treatments = np.armgax(ice, axis = 0)
+            best_treatments = np.armgax(ice, axis=0)
 
         return best_treatments
 
-    def calibrate(self, treatments = None):
+    def calibrate(self, treatments=None):
         """(Experimental)
         This fits a calibrator on training dataset and replaces existing y transformer
         In essense this builds a model of form y = b0+b1*y_pred for all treatments.
@@ -338,7 +339,7 @@ class IbottaUplift:
 
         if t_train.shape[1] > 1:
             t_train = np.array([reduce_concat(x, '_') for x in t_train])
-        t_train = t_train.reshape(-1,1)
+        t_train = t_train.reshape(-1, 1)
 
         ice = self.predict_ice(x_train, treatments)
 
