@@ -1,10 +1,9 @@
 import numpy as np
 import pandas as pd
-import argparse
 import functools
-
-from ds_util.io import save_object, load_object
-
+import dill
+import copy
+from keras.models import load_model
 from ibotta_uplift.keras_model_functionality import save_keras_model, load_keras_model,\
     train_model_multi_output_w_tmt
 from ibotta_uplift.erupt import get_erupts_curves_aupc, get_best_tmts
@@ -45,8 +44,9 @@ def reduce_concat(x, sep=""):
     return functools.reduce(lambda x, y: str(x) + sep + str(y), x)
 
 
-class IbottaUplift:
+class IbottaUplift(object):
     def __init__(self, **kw):
+
         """I'm putting this in here because I think its necessary for .copy()
         function later. Not sure if thats the case.
         """
@@ -251,7 +251,7 @@ class IbottaUplift:
         """Copies IbottaUplift Class. Not sure if this is the best way but it
         works.
         """
-        return IbottaUplift(**self.kw)
+        return copy.copy(self)
 
     def save(self, file_location):
         """Saves IbottaUplift Class to location. Will save two outputs:
@@ -262,17 +262,16 @@ class IbottaUplift:
         Returns:
           Nothin. Saves file to location
         """
+        model = self.model
         uplift_class_copy = self.copy()
         uplift_class_copy.model = None
 
-        save_object(
-            uplift_class_copy,
-            file_location +
-            '/ibotta_uplift_class.pkl')
-        save_keras_model(
-            uplift_model.model,
-            file_location +
-            '/ibotta_uplift_model.pkl')
+
+        dill.dump(uplift_class_copy, file = open(file_location + '/ibotta_uplift_class.pkl', "wb"))
+
+        model.save(file_location + '/ibotta_uplift_model.h5')
+
+
 
     def load(self, file_location):
         """Loads IbottaUplift Class from location.
@@ -282,12 +281,11 @@ class IbottaUplift:
         Returns:
           Updated Uplift Class
         """
-        uplift_model = load_keras_model(
-            file_location + '/ibotta_uplift_model.pkl')
-        uplift_class = load_object(file_location + '/ibotta_uplift_class.pkl')
-        uplift_class.model = uplift_model
 
-        return uplift_class
+        uplift_class = dill.load(open(file_location + '/ibotta_uplift_class.pkl', "rb"))
+        uplift_class.model = load_model(file_location + '/ibotta_uplift_model.h5')
+        self.__dict__.update(uplift_class.__dict__)
+
 
     def predict_optimal_treatments(self, x, weights, treatments=None,
                                    calibrator=False):

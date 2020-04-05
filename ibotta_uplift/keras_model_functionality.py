@@ -10,6 +10,8 @@ from keras.wrappers.scikit_learn import KerasRegressor
 from numpy.random import seed
 from sklearn.metrics import make_scorer
 from sklearn.model_selection import GridSearchCV
+from keras.losses import mean_squared_error
+
 
 
 def missing_mse_loss_multi_output(yTrue, yPred):
@@ -43,12 +45,29 @@ def missing_mse_loss_multi_output_np(yTrue, yPred):
     output = (yTrue * equals - yPred * equals)**2
     return np.mean(output)
 
+def mse_loss_multi_output_np(yTrue, yPred):
+    """Returns Loss for Keras. This is essentially a multi-output regression that
+    ignores missing data. It's similar in concept to matrix factorization with
+    missing data in that it only includes non missing values in loss function.
+    Anything with -999.0 is ignored
+    Args:
+        yTrue (keras array): True Values
+        yPred (keras array): Predictions
+    Returns:
+        Function to minimize
+    """
+    output = (yTrue  - yPred )**2
+    return np.mean(output)
 
 missing_mse_loss_multi_output_scorer = make_scorer(
     missing_mse_loss_multi_output_np, greater_is_better=False)
 
+mse_loss_multi_output_scorer = make_scorer(
+    mse_loss_multi_output_np, greater_is_better=False)
 
-def hete_missing_mse_loss_multi_output(
+
+
+def hete_mse_loss_multi_output(
         input_shape,
         output_shape,
         num_nodes=256,
@@ -80,8 +99,8 @@ def hete_missing_mse_loss_multi_output(
     model = Model(input, x)
     model.compile(
         optimizer='rmsprop',
-        loss=missing_mse_loss_multi_output,
-        metrics=[missing_mse_loss_multi_output])
+        loss=mean_squared_error,
+        metrics=[mean_squared_error])
 
     return model
 
@@ -130,7 +149,7 @@ def train_model_multi_output_w_tmt(x, y, param_grid=None, n_jobs=-1, cv=5):
                           'relu'], num_layers=[1, 2], epochs=[50], batch_size=[400, 4000, 8000])
 
     model = KerasRegressor(
-        build_fn=hete_missing_mse_loss_multi_output,
+        build_fn=hete_mse_loss_multi_output,
         input_shape=x.shape[1],
         output_shape=y.shape[1],
         num_nodes=32,
@@ -144,7 +163,7 @@ def train_model_multi_output_w_tmt(x, y, param_grid=None, n_jobs=-1, cv=5):
         estimator=model,
         param_grid=param_grid,
         n_jobs=n_jobs,
-        scoring=missing_mse_loss_multi_output_scorer,
+        scoring=mse_loss_multi_output_scorer,
         verbose=False,
         cv=cv)
 
