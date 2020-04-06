@@ -26,6 +26,7 @@ Quick Start Example
 In a python enviornment :
 
 .. code-block:: python
+
     import numpy as np
     import pandas as pd
 
@@ -50,5 +51,3 @@ In a python enviornment :
     _, x_new ,_  = get_simple_uplift_data(5)
     uplift_model.predict_optimal_treatments(x_new, weights = np.array([.6,-.4,0,0]).reshape(1,-1))
 
-
-t
