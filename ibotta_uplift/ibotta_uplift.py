@@ -16,7 +16,8 @@ from ibotta_uplift.calibrate_uplift import UpliftCalibration
 
 
 def get_t_data(values, num_obs):
-    """expands single treatment to many rows.
+    """Repeats treatment to several rows and reshapes it. Used to append treatments
+    to explanatory variable dataframe to predict counterfactuals.
     Args:
       values (array): treatments to predict
     Returns:
@@ -132,7 +133,10 @@ class IbottaUplift(object):
         self.model = net.best_estimator_.model
 
     def predict(self, x, t):
-        """Returns predictions of Fitted Model
+        """Returns predictions of Fitted Model. Transforms both x and t then
+        concatnates those two variables into an array to predict on. Finally,
+        an inverse transformer is applied on predictions to transform to original
+        response means and standard deviations.
 
         Args:
         x (np array or pd.dataframe): Explanatory Data of shape num_observations
@@ -141,7 +145,7 @@ class IbottaUplift(object):
           num_observations by num_treatment columns
 
         Returns:
-        Builds and returns regression of form net of for y ~ f(t,x)
+        Predictions fitted model
         """
 
         x_t_new = np.concatenate(
@@ -154,7 +158,10 @@ class IbottaUplift(object):
 
     def predict_ice(self, x=None, treatments=None, calibrator=False):
         """Predicts all counterfactuals with new data. If no new data is
-            assigned it will use test set data.
+            assigned it will use test set data. Can subset to particular treatments
+            using treatment assignment. Can also apply calibrator function (experimental)
+            to predictions.
+
             The 'ice' refers to Individual Conditional Expectations. A better
             description of this can be found here:
             https://arxiv.org/pdf/1309.6392.pdf
@@ -189,10 +196,18 @@ class IbottaUplift(object):
 
     def get_erupt_curves(self, x=None, y=None, t=None, objective_weights=None,
                          treatments=None, calibrator=False):
-        """Returns ERUPT Curves and distributions. If either x or y is not inputted
-        it will use test data.
+        """Returns ERUPT Curves and distributions of treatments. If either x or
+        y or t is not inputted it will use test data.
 
-        An example is described in more detail here:
+        If there is only one response variable then it will assume we want to maximize the response.
+        It will calculate and return the ERUPT metric and distribution of treatments.
+        An introduction to ERUPT metric can be found here https://medium.com/building-ibotta/erupt-expected-response-under-proposed-treatments-ff7dd45c84b4
+
+        If there are mutliple responses it will use objective_weights to create a weighted sum of response
+        variables. It will then use this new weighted sum to determine optimal treatments and calculate ERUPT
+        metrics accordingly. Repeateldy doing this with different weights will lead estimations of tradeoffs.
+
+        ERUPT curves are described in more detail here:
         https://medium.com/building-ibotta/estimating-and-visualizing-business-tradeoffs-in-uplift-models-80ff845a5698
 
         Args:
@@ -210,8 +225,7 @@ class IbottaUplift(object):
         """
 
         if self.num_responses == 1:
-            raise Exception(
-                "No Tradeoffs are available with one response variable.")
+            objective_weights = np.array([1]).reshape(1,-1)
 
         if objective_weights is None:
             objective_weights = np.zeros((11, self.num_responses))
@@ -287,13 +301,15 @@ class IbottaUplift(object):
         self.__dict__.update(uplift_class.__dict__)
 
 
-    def predict_optimal_treatments(self, x, weights, treatments=None,
+    def predict_optimal_treatments(self, x, weights=None, treatments=None,
                                    calibrator=False):
-        """Predicts optimal treatments given explanatory variables and weights
+        """Calculates optimal treatments of model output given explanatory
+            variables and weights
 
         Args:
           x (np.array): new data to predict. Will use test data if not given
-          weight (np.array): set of weights of length num_responses to maximize
+          weight (np.array): set of weights of length num_responses to maximize.
+            is required for multi output decisions
           treatments (np.array): Treatments to predict on. If none assigned then
           original training treatments are used.
           calibrator (boolean): If true will use the trained calibrator to transform
@@ -317,19 +333,19 @@ class IbottaUplift(object):
                 unique_t = treatments
             best_treatments = get_best_tmts(weights, ice, treatments)
         else:
-            best_treatments = np.armgax(ice, axis=0)
+            best_treatments = np.argmax(ice, axis=0)
 
         return best_treatments
 
     def calibrate(self, treatments=None):
         """(Experimental)
-        This fits a calibrator on training dataset and replaces existing y transformer
-        In essense this builds a model of form y = b0+b1*y_pred for all treatments.
+        This fits a calibrator on training dataset. This of the form
+        y = b0y_pred_0*t_0+b1*y_pred_1*t_1 + ... + b_num_tmts*y_pred_numtmts*t_num_tmts for all treatments.
 
         Args:
             None
         Returns:
-          Nothing. Replaces existing y transformer with calibrator
+          None
         """
         x_train, x, y_train, y, t_train, t = train_test_split(
             self.x, self.y, self.t, test_size=self.test_size,
