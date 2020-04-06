@@ -1,5 +1,3 @@
-.. figure:: https://github.com/Ibotta/pure-predict/blob/master/doc/images/pure-predict.png
-   :alt: pure-predict
 
 ibotta_uplift: Machine learning uplift model package
 ========================================================
