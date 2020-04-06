@@ -49,3 +49,6 @@ In a python enviornment :
     #predict optimal treatments with new observations
     _, x_new ,_  = get_simple_uplift_data(5)
     uplift_model.predict_optimal_treatments(x_new, weights = np.array([.6,-.4,0,0]).reshape(1,-1))
+
+
+t
