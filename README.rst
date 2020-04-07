@@ -57,9 +57,13 @@ Relevant Papers and Blog Posts:
 -------------------
 
 For Discussion on the metric used to calculate how model performs see:
+
 `ERUPT: Expected Response Under Proposed Treatments <https://medium.com/building-ibotta/erupt-expected-response-under-proposed-treatments-ff7dd45c84b4>`__
+
 `Uplift Modeling with Multiple Treatments and General Response Types <https://arxiv.org/pdf/1705.08492.pdf>`__
+
 `Heterogeneous Treatment Effects and Optimal Targeting Policy Evaluation <https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3111957>`__
 
 For tradeoff analysis see:
+
 `Estimating and Visualizing Business Tradeoffs in Uplift Models <https://medium.com/building-ibotta/estimating-and-visualizing-business-tradeoffs-in-uplift-models-80ff845a5698>`__
