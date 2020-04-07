@@ -32,7 +32,7 @@ CLASSIFIERS = [
 AUTHOR = "Ibotta Inc."
 AUTHOR_EMAIL = "machine_learning@ibotta.com"
 LICENSE = "Apache 2.0"
-DOWNLOAD_URL = "tbd"
+DOWNLOAD_URL = "https://github.com/Ibotta/ibotta_uplift"
 PROJECT_URLS = {
     "Source Code": "https://github.com/Ibotta/ibotta_uplift"
     }
