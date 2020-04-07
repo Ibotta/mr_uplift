@@ -56,8 +56,8 @@ class IbottaUplift(object):
 
     def fit(self, x, y, t, test_size=0.7, random_state=22, param_grid=None,
             n_jobs=-1, cv=5):
-        """Fits a Neural Network Model of the form y ~ f(t,x). Scales all variables
-        and creates seperate transformers for y, t, and x. Assigns train / test split.
+        """Fits a Neural Network Model of the form y ~ f(t,x). Creates seperate
+        transformers for y, t, and x and scales each. Assigns train / test split.
 
         Args:
         x (np array or pd.dataframe): Explanatory Data of shape num_observations
@@ -74,8 +74,7 @@ class IbottaUplift(object):
         cv (int): number of cross vaildation_folds
 
         Returns:
-        Builds a regression of form net of for y ~ f(t,x) and assigns it to
-        self.model
+        Builds a neural network and assigns it to self.model
         """
 
         self.unique_t = np.unique(np.array(t), axis=0)
@@ -133,8 +132,8 @@ class IbottaUplift(object):
         self.model = net.best_estimator_.model
 
     def predict(self, x, t):
-        """Returns predictions of Fitted Model. Transforms both x and t then
-        concatnates those two variables into an array to predict on. Finally,
+        """Returns predictions of the fitted model. Transforms both x and t then
+        concatenates those two variables into an array to predict on. Finally,
         an inverse transformer is applied on predictions to transform to original
         response means and standard deviations.
 
@@ -205,13 +204,13 @@ class IbottaUplift(object):
 
         If there are mutliple responses it will use objective_weights to create a weighted sum of response
         variables. It will then use this new weighted sum to determine optimal treatments and calculate ERUPT
-        metrics accordingly. Repeateldy doing this with different weights will lead estimations of tradeoffs.
+        metrics accordingly. Repeatedly doing this with different weights will lead estimations of tradeoffs.
 
         ERUPT curves are described in more detail here:
         https://medium.com/building-ibotta/estimating-and-visualizing-business-tradeoffs-in-uplift-models-80ff845a5698
 
         Args:
-          x (np.array): x data
+          x (np.array): new data to predict. Will use test data if not given
           y (np.array): responses
           objective_weights (np.array): of dim (num_weights by num_response_variables).
           if none is assigned it will trade off costs of first two response variables and
