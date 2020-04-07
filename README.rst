@@ -13,7 +13,7 @@ This package attempts to build an automated solution for Uplift modeling that in
 #. `ERUPT <https://medium.com/building-ibotta/erupt-expected-response-under-proposed-treatments-ff7dd45c84b4>`__ functionality that estimates model performance on OOS data. This metric calculates the expected response if the model were given to the average user.
 #. Support for multiple responses. This allows estimation of tradeoffs between maximizing / minimizing weighted sums of responses. An example can be found `here <https://medium.com/building-ibotta/estimating-and-visualizing-business-tradeoffs-in-uplift-models-80ff845a5698>`__
 
-It does so by estimating a neural network of the form :math:`y ∼ f(t,x)` where :math:`y, x, and t` are the response, explanatory variables and treatment variables. It is assumed the treatment was randomly assigned. There is functionality to predict counterfactuals for all treatments and calculates ERUPT metrics on out of sample data.
+It does so by estimating a neural network of the form y ∼ f(t,x) where y, x, and t are the response, explanatory variables and treatment variables. It is assumed the treatment was randomly assigned. There is functionality to predict counterfactuals for all treatments and calculates ERUPT metrics on out of sample data.
 
 
 Quick Start Example
