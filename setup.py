@@ -49,5 +49,16 @@ setup(name=DISTNAME,
       download_url=DOWNLOAD_URL,
       project_urls=PROJECT_URLS,
       packages=find_packages(),
+      install_requires=[
+          'numpy',
+          'pandas',
+          'tensorflow',
+          'keras',
+          'dill',
+          'sklearn',
+          'functools',
+          'copy'
+
+      ],
       python_requires=">={0}".format(MIN_PYTHON_VERSION)
       )

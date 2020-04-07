@@ -1,7 +1,6 @@
 from tempfile import NamedTemporaryFile
 
 import numpy as np
-from ds_util.io import cp
 from keras import backend as K
 from keras.layers import Input, Dense, Dropout
 from keras.models import Model
