@@ -71,34 +71,6 @@ def hete_mse_loss_multi_output(
     return model
 
 
-def save_keras_model(model, location):
-    """Saves keras model to location
-    Args:
-        model (keras model): keras model to save
-        location (str): location to save to in s3
-    """
-    with NamedTemporaryFile(mode="r") as f:
-        model.save(f.name, include_optimizer=False)
-        cp(f.name, location)
-
-
-def load_keras_model(location, use_tf=False):
-    """Loads Keras model
-    Args:
-        location (str): location to save to in s3
-        use_tf (bool): If True, use tensorflow
-    Returns:
-        keras model previously saved
-    """
-    with NamedTemporaryFile(mode="r") as f:
-        cp(location, f.name)
-        if use_tf:
-            import tensorflow as tf
-            return tf.keras.models.load_model(f.name)
-        else:
-            return load_model(f.name, compile=False)
-
-
 def train_model_multi_output_w_tmt(x, y, param_grid=None, n_jobs=-1, cv=5):
     """Trains and does gridsearch on a keras nnet. Response can be multi output
     Args:
