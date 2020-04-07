@@ -14,36 +14,6 @@ from keras.losses import mean_squared_error
 
 
 
-def missing_mse_loss_multi_output(yTrue, yPred):
-    """Returns Loss for Keras. This is essentially a multi-output regression that
-    ignores missing data. It's similar in concept to matrix factorization with
-    missing data in that it only includes non missing values in loss function.
-    Args:
-        yTrue (keras array): True Values
-        yPred (keras array): Predictions
-    Returns:
-        Function to minimize
-    """
-    equals = K.cast(K.not_equal(
-        yTrue, K.cast_to_floatx(-999.0)), dtype='float32')
-    output = (yTrue * equals - yPred * equals)**2
-    return K.mean(output)
-
-
-def missing_mse_loss_multi_output_np(yTrue, yPred):
-    """Returns Loss for Keras. This is essentially a multi-output regression that
-    ignores missing data. It's similar in concept to matrix factorization with
-    missing data in that it only includes non missing values in loss function.
-    Anything with -999.0 is ignored
-    Args:
-        yTrue (keras array): True Values
-        yPred (keras array): Predictions
-    Returns:
-        Function to minimize
-    """
-    equals = (yTrue != -999.0) * 1
-    output = (yTrue * equals - yPred * equals)**2
-    return np.mean(output)
 
 def mse_loss_multi_output_np(yTrue, yPred):
     """Returns Loss for Keras. This is essentially a multi-output regression that
@@ -59,12 +29,9 @@ def mse_loss_multi_output_np(yTrue, yPred):
     output = (yTrue  - yPred )**2
     return np.mean(output)
 
-missing_mse_loss_multi_output_scorer = make_scorer(
-    missing_mse_loss_multi_output_np, greater_is_better=False)
 
 mse_loss_multi_output_scorer = make_scorer(
     mse_loss_multi_output_np, greater_is_better=False)
-
 
 
 def hete_mse_loss_multi_output(
