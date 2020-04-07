@@ -2,10 +2,6 @@
 ibotta_uplift: Machine learning uplift model package
 ========================================================
 
-|License| |Build Status| |PyPI Package| |Python Versions|
-
-``ibotta_uplift``
-give example
 
 Introduction
 -----------------
@@ -53,8 +49,8 @@ In a python enviornment :
     uplift_model.predict_optimal_treatments(x_new, weights = np.array([.6,-.4,0,0]).reshape(1,-1))
 
 
-Relevant Papers and Blog Posts:
--------------------
+Relevant Papers and Blog Posts
+------------------------------
 
 For Discussion on the metric used to calculate how model performs see:
 
