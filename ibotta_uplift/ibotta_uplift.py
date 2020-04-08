@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import functools
 import dill
 import copy
 from keras.models import load_model
@@ -41,7 +40,7 @@ def reduce_concat(x, sep=""):
     Returns:
       string of objects
     """
-    return functools.reduce(lambda x, y: str(x) + sep + str(y), x)
+    return [','.join(str(q)) for q in x]
 
 
 class IbottaUplift(object):
