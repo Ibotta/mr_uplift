@@ -4,8 +4,7 @@ import functools
 import dill
 import copy
 from keras.models import load_model
-from ibotta_uplift.keras_model_functionality import save_keras_model, load_keras_model,\
-    train_model_multi_output_w_tmt
+from ibotta_uplift.keras_model_functionality import train_model_multi_output_w_tmt
 from ibotta_uplift.erupt import get_erupts_curves_aupc, get_best_tmts
 
 from keras.wrappers.scikit_learn import KerasRegressor
