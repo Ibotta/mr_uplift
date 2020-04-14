@@ -49,7 +49,7 @@ In a python enviornment :
     uplift_model.predict_optimal_treatments(x_new, weights = np.array([.6,-.4,0,0]).reshape(1,-1))
 
 
-.. figure:: https://github.com/Ibotta/ibotta_uplift/doc/images/erupt_curves.png
+.. figure:: https://github.com/Ibotta/ibotta_uplift/blob/master/doc/images/erupt_curves.png
    :alt: erupt-curves
 
 Relevant Papers and Blog Posts
