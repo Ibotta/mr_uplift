@@ -39,4 +39,4 @@ class TestCalibrate(object):
     def test_uplift_scores(self, calib):
         true_coefs = np.array([[1., 0.], [1., 0.]])
         calib.uplift_scores()
-        assert np.allclose(calib.reg_results, true_coefs)
+        assert np.allclose(calib.regression_results, true_coefs)
