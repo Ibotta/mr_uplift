@@ -359,3 +359,56 @@ class IbottaUplift(object):
         calib.uplift_scores()
 
         self.calibrator = calib
+
+
+    def permutation_varimp(self, weights=None, x=None, treatments=None, calibrator=False):
+        """Variable importance metrics. This is based on permutation tests. For variable this permutes the column
+        and then predicts and finds the optimal value given a set of weights. For each user it compares the optimal treatment of
+        permuted column data with optimal treatment of non-permuted data and averages the result. The output is an index of how often
+        the permuted column disagrees with unpermuted columns.
+
+        Args:
+          weights (np.array): set of weights of length num_responses to maximize.
+            is required for multi output decisions
+          x (np.array): new data to predict. Will use test data if not given
+            treatments (np.array): Treatments to predict on. If none assigned then
+            original training treatments are used.
+          calibrator (boolean): If true will use the trained calibrator to transform
+            responses. Otherwise will use the response inverse transformer
+        Returns:
+          df of variable importance metrics
+        """
+        if x is None:
+            x_train, x, y_train, y, t_train, t = train_test_split(
+                self.x, self.y, self.t, test_size=self.test_size,
+                random_state=self.random_state)
+
+
+        original_decisions = self.predict_optimal_treatments(x, weights=weights, treatments=treatments,
+                                       calibrator=calibrator)
+        varimps = []
+        for p in range(x.shape[1]):
+
+            shuffled_index = np.arange(x.shape[0])
+            np.random.shuffle(shuffled_index)
+
+            x_copy = x.copy()
+            x_copy[:,p] = x_copy[:,p][shuffled_index]
+
+            temp_decisions = self.predict_optimal_treatments(x_copy,
+                weights=weights, treatments=treatments,
+                calibrator=calibrator)
+            temp_varimp = (original_decisions == temp_decisions).mean()
+
+            varimps.append(temp_varimp)
+
+        #make varimps a 'larger number -> more important' metric
+        varimps = 1 - np.array(varimps)
+
+        varimps_pd = pd.DataFrame(np.array(varimps))
+        varimps_pd.columns = ['permuation_varimp_metric']
+
+        if self.x_names is not None:
+            varimps_pd['var_names'] = self.x_names
+
+        return varimps_pd
