@@ -66,3 +66,8 @@ For Discussion on the metric used to calculate how model performs see:
 For tradeoff analysis see:
 
 `Estimating and Visualizing Business Tradeoffs in Uplift Models <https://medium.com/building-ibotta/estimating-and-visualizing-business-tradeoffs-in-uplift-models-80ff845a5698>`__
+
+
+Acknowledgements
+~~~~~~~~~~~~~~~~
+Thanks to `Evan Harris <https://github.com/denver1117>`__ , `Andrew Tilley <https://github.com/tilleyand>`__ , `Matt Johnson <https://github.com/mattsgithub>`__ ,and `Nicole Woytarowicz <https://github.com/nicolele>`__  for internal review before open source. 
