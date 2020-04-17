@@ -55,7 +55,7 @@ setup(name=DISTNAME,
           'tensorflow',
           'keras',
           'dill',
-          'sklearn>=0.19.1'
+          'sklearn'
       ],
       python_requires=">={0}".format(MIN_PYTHON_VERSION)
       )
