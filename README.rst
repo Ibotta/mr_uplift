@@ -1,5 +1,5 @@
 
-ibotta_uplift: Machine learning uplift model package
+mr_uplift: Machine learning Uplift Package
 ========================================================
 
 
@@ -27,7 +27,7 @@ In a python enviornment :
     import pandas as pd
 
     from dataset.data_simulation import get_simple_uplift_data
-    from ibotta_uplift.ibotta_uplift import IbottaUplift
+    from mr_uplift.mr_uplift import MRUplift
 
     #Generate Data
     y, x, t = get_simple_uplift_data(10000)
@@ -36,7 +36,7 @@ In a python enviornment :
     y['profit'] = y['revenue'] - y['cost']
 
     #Build / Gridsearch model
-    uplift_model = IbottaUplift()
+    uplift_model = MRUplift()
     param_grid = dict(num_nodes=[8], dropout=[.1, .5], activation=[
                           'relu'], num_layers=[1, 2], epochs=[25], batch_size=[30])
     uplift_model.fit(x, y[['profit']], t.reshape(-1,1), param_grid = param_grid, n_jobs = 1)
@@ -49,7 +49,7 @@ In a python enviornment :
     uplift_model.predict_optimal_treatments(x_new, weights = np.array([.6,-.4,0,0]).reshape(1,-1))
 
 
-.. figure:: https://github.com/Ibotta/ibotta_uplift/blob/master/doc/images/erupt_curves.png
+.. figure:: https://github.com/Ibotta/mr_uplift/blob/master/doc/images/erupt_curves.png
    :alt: erupt-curves
 
 Relevant Papers and Blog Posts
@@ -70,4 +70,4 @@ For tradeoff analysis see:
 
 Acknowledgements
 ~~~~~~~~~~~~~~~~
-Thanks to `Evan Harris <https://github.com/denver1117>`__ , `Andrew Tilley <https://github.com/tilleyand>`__ , `Matt Johnson <https://github.com/mattsgithub>`__ ,and `Nicole Woytarowicz <https://github.com/nicolele>`__  for internal review before open source. 
+Thanks to `Evan Harris <https://github.com/denver1117>`__ , `Andrew Tilley <https://github.com/tilleyand>`__ , `Matt Johnson <https://github.com/mattsgithub>`__ ,and `Nicole Woytarowicz <https://github.com/nicolele>`__  for internal review before open source.

@@ -3,14 +3,14 @@ import pandas as pd
 import dill
 import copy
 from keras.models import load_model
-from ibotta_uplift.keras_model_functionality import train_model_multi_output_w_tmt
-from ibotta_uplift.erupt import get_erupts_curves_aupc, get_best_tmts
+from mr_uplift.keras_model_functionality import train_model_multi_output_w_tmt
+from mr_uplift.erupt import get_erupts_curves_aupc, get_best_tmts
 
 from keras.wrappers.scikit_learn import KerasRegressor
 from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
-from ibotta_uplift.calibrate_uplift import UpliftCalibration
+from mr_uplift.calibrate_uplift import UpliftCalibration
 
 
 def get_t_data(values, num_obs):
@@ -43,7 +43,7 @@ def reduce_concat(x, sep=""):
     return [','.join(str(q)) for q in x]
 
 
-class IbottaUplift(object):
+class MRUplift(object):
     def __init__(self, **kw):
 
         """I'm putting this in here because I think its necessary for .copy()
@@ -259,14 +259,14 @@ class IbottaUplift(object):
             names=self.y_names)
 
     def copy(self):
-        """Copies IbottaUplift Class. Not sure if this is the best way but it
+        """Copies MRUplift Class. Not sure if this is the best way but it
         works.
         """
         return copy.copy(self)
 
     def save(self, file_location):
-        """Saves IbottaUplift Class to location. Will save two outputs:
-        keras model and rest of IbottaUplift class.
+        """Saves MRUplift Class to location. Will save two outputs:
+        keras model and rest of MRUplift class.
 
         Args:
           file_location (str): File location to save data
@@ -278,14 +278,14 @@ class IbottaUplift(object):
         uplift_class_copy.model = None
 
 
-        dill.dump(uplift_class_copy, file = open(file_location + '/ibotta_uplift_class.pkl', "wb"))
+        dill.dump(uplift_class_copy, file = open(file_location + '/mr_uplift_class.pkl', "wb"))
 
-        model.save(file_location + '/ibotta_uplift_model.h5')
+        model.save(file_location + '/mr_uplift_model.h5')
 
 
 
     def load(self, file_location):
-        """Loads IbottaUplift Class from location.
+        """Loads MRUplift Class from location.
 
         Args:
           file_location (str): File location to load data
@@ -293,8 +293,8 @@ class IbottaUplift(object):
           Updated Uplift Class
         """
 
-        uplift_class = dill.load(open(file_location + '/ibotta_uplift_class.pkl', "rb"))
-        uplift_class.model = load_model(file_location + '/ibotta_uplift_model.h5')
+        uplift_class = dill.load(open(file_location + '/mr_uplift_class.pkl', "rb"))
+        uplift_class.model = load_model(file_location + '/mr_uplift_model.h5')
         self.__dict__.update(uplift_class.__dict__)
 
 

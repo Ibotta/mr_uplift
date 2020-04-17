@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from ibotta_uplift.dataset.data_simulation import get_no_noise_data, get_simple_uplift_data
-from ibotta_uplift.calibrate_uplift import UpliftCalibration
-from ibotta_uplift.erupt import weighted_avg_and_std, erupt,\
+from mr_uplift.dataset.data_simulation import get_no_noise_data, get_simple_uplift_data
+from mr_uplift.calibrate_uplift import UpliftCalibration
+from mr_uplift.erupt import weighted_avg_and_std, erupt,\
     get_best_tmts, get_weights
 
 
