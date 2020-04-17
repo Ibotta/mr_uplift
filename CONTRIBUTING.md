@@ -14,4 +14,4 @@ you may request the second reviewer to merge it for you.
 
 ## Code of Conduct
 
-Our code of conduct can be found [here](https://github.com/Ibotta/ibotta_uplift/blob/master/CODE_OF_CONDUCT.md).
+Our code of conduct can be found [here](https://github.com/Ibotta/mr_uplift/blob/master/CODE_OF_CONDUCT.md).

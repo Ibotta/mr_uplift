@@ -14,8 +14,8 @@ def parse_description(description):
         if ("figure::" not in a) and (":alt:" not in a)
         ])
 
-DISTNAME = "ibotta_uplift"
-VERSION = "0.0.4"
+DISTNAME = "mr_uplift"
+VERSION = "0.0.1"
 DESCRIPTION = "Machine learning tools for uplift models"
 with open("README.rst") as f:
     LONG_DESCRIPTION = parse_description(f.read())
@@ -32,9 +32,9 @@ CLASSIFIERS = [
 AUTHOR = "Ibotta Inc."
 AUTHOR_EMAIL = "machine_learning@ibotta.com"
 LICENSE = "Apache 2.0"
-DOWNLOAD_URL = "https://github.com/Ibotta/ibotta_uplift"
+DOWNLOAD_URL = "https://github.com/Ibotta/mr_uplift"
 PROJECT_URLS = {
-    "Source Code": "https://github.com/Ibotta/ibotta_uplift"
+    "Source Code": "https://github.com/Ibotta/mr_uplift"
     }
 MIN_PYTHON_VERSION = "3.5"
 
@@ -50,12 +50,12 @@ setup(name=DISTNAME,
       project_urls=PROJECT_URLS,
       packages=find_packages(),
       install_requires=[
-          'numpy',
-          'pandas',
+          'numpy>1.17.2',
+          'pandas>=0.20.0',
           'tensorflow',
           'keras',
           'dill',
-          'sklearn'
+          'sklearn>=0.20.3'
       ],
       python_requires=">={0}".format(MIN_PYTHON_VERSION)
       )

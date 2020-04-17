@@ -1,11 +1,11 @@
 import numpy as np
 import pytest
 
-from ibotta_uplift.dataset.data_simulation import get_no_noise_data, get_simple_uplift_data
-from ibotta_uplift.ibotta_uplift import IbottaUplift, get_t_data
+from mr_uplift.dataset.data_simulation import get_no_noise_data, get_simple_uplift_data
+from mr_uplift.mr_uplift import MRUplift, get_t_data
 
 
-class TestIbottaUplift(object):
+class TestMRUplift(object):
 
     def test_get_t_data(self):
 
@@ -29,7 +29,7 @@ class TestIbottaUplift(object):
 
         y_no_noise, x_no_noise, tmt_no_noise = get_no_noise_data(num_obs)
 
-        uplift_model = IbottaUplift()
+        uplift_model = MRUplift()
         uplift_model.fit(x_no_noise, y_no_noise, tmt_no_noise.reshape(-1, 1),
                          n_jobs=1)
         oos_ice = uplift_model.predict_ice()
@@ -44,7 +44,7 @@ class TestIbottaUplift(object):
         t = np.concatenate([t.reshape(-1, 1),
         np.random.binomial(1, .5, num_obs).reshape(-1, 1)], axis=1)
 
-        uplift_model = IbottaUplift()
+        uplift_model = MRUplift()
         uplift_model.fit(x, y, t, n_jobs=1)
 
         assert uplift_model.predict_ice().shape == (
