@@ -39,7 +39,7 @@ In a python enviornment :
     uplift_model = MRUplift()
     param_grid = dict(num_nodes=[8], dropout=[.1, .5], activation=[
                           'relu'], num_layers=[1, 2], epochs=[25], batch_size=[30])
-    uplift_model.fit(x, y[['profit']], t.reshape(-1,1), param_grid = param_grid, n_jobs = 1)
+    uplift_model.fit(x, y, t.reshape(-1,1), param_grid = param_grid, n_jobs = 1)
 
     #OOS ERUPT Curves
     erupt_curves, dists = uplift_model.get_erupt_curves()
