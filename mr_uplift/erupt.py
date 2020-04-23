@@ -146,7 +146,7 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
         dist_treatments = pd.DataFrame(np.array(dists).reshape(-1, 1))
         dist_treatments['tmt'] = dists.index
         dist_treatments['weights'] = str_obj_weight
-        dist_treatments['percent_tmt'] = dists / dists.sum()
+        dist_treatments['percent_tmt'] = np.array(dists) / np.array(dists).sum()
         dist_treatments.columns = ['num_observations', 'tmt', 'weights',
                                    'percent_tmt']
 

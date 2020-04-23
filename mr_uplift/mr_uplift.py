@@ -33,14 +33,14 @@ def get_t_data(values, num_obs):
     return values_rep
 
 
-def reduce_concat(x, sep=""):
+def reduce_concat(x):
     """concatenates object into one string
     Args:
       x (array): values to concatenate into one string
     Returns:
       string of objects
     """
-    return [','.join(str(q)) for q in x]
+    return np.array(['_'.join(map(str, q)) for q in x])
 
 
 class MRUplift(object):
@@ -238,8 +238,8 @@ class MRUplift(object):
             treatments = self.unique_t
 
         if t.shape[1] > 1:
-            t = np.array([reduce_concat(x, '_') for x in t])
-            unique_t = np.array([reduce_concat(x, '_') for x in treatments])
+            t = reduce_concat(t)
+            unique_t = reduce_concat(treatments)
         else:
             unique_t = treatments
 
@@ -324,8 +324,7 @@ class MRUplift(object):
         if self.num_responses > 1:
 
             if treatments.shape[1] > 1:
-                unique_t = np.array([reduce_concat(x, '_')
-                                     for x in treatments])
+                unique_t = reduce_concat(treatments)
             else:
                 unique_t = treatments
             best_treatments = get_best_tmts(weights, ice, treatments)
@@ -349,7 +348,7 @@ class MRUplift(object):
             random_state=self.random_state)
 
         if t_train.shape[1] > 1:
-            t_train = np.array([reduce_concat(x, '_') for x in t_train])
+            t_train = reduce_concat(t_train)
         t_train = t_train.reshape(-1, 1)
 
         ice = self.predict_ice(x_train, treatments)
