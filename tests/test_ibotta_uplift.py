@@ -43,9 +43,11 @@ class TestMRUplift(object):
 
         t = np.concatenate([t.reshape(-1, 1),
         np.random.binomial(1, .5, num_obs).reshape(-1, 1)], axis=1)
+        param_grid = dict(num_nodes=[8], dropout=[.1], activation=[
+                                  'relu'], num_layers=[1], epochs=[1], batch_size=[1000])
 
         uplift_model = MRUplift()
-        uplift_model.fit(x, y, t, n_jobs=1)
+        uplift_model.fit(x, y, t, param_grid = param_grid, n_jobs=1)
 
         assert uplift_model.predict_ice().shape == (
             np.unique(t, axis=0).shape[0], num_obs * .7, y.shape[1])
@@ -53,3 +55,5 @@ class TestMRUplift(object):
         assert uplift_model.predict_ice(x=x).shape == (np.unique(t,axis=0).shape[0],
             num_obs,
             y.shape[1])
+
+        assert uplift_model.get_erupt_curves()
