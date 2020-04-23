@@ -1,3 +1,5 @@
+.. figure:: https://github.com/Ibotta/mr_uplift/blob/master/doc/images/mr_uplift_logo.png
+   :alt: mr_erupt
 
 mr_uplift: Machine learning Uplift Package
 ========================================================
@@ -70,4 +72,4 @@ For tradeoff analysis see:
 
 Acknowledgements
 ~~~~~~~~~~~~~~~~
-Thanks to `Evan Harris <https://github.com/denver1117>`__, `Andrew Tilley <https://github.com/tilleyand>`__, `Matt Johnson <https://github.com/mattsgithub>`__, and `Nicole Woytarowicz <https://github.com/nicolele>`__  for internal review before open source.
+Thanks to `Evan Harris <https://github.com/denver1117>`__, `Andrew Tilley <https://github.com/tilleyand>`__, `Matt Johnson <https://github.com/mattsgithub>`__, and `Nicole Woytarowicz <https://github.com/nicolele>`__  for internal review before open source. Thanks to `James Foley <https://github.com/chadfoley36>`__ for logo artwork.
