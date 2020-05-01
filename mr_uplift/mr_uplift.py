@@ -229,7 +229,8 @@ class MRUplift(object):
             objective_weights[:, 0] = np.linspace(0.0, 1.0, num=11)
             objective_weights[:, 1] = -np.linspace(1.0, 0.0, num=11)
 
-        if x or y or t is None:
+        if any([q is None for q in [x, y, t] ]):
+            print("Using Test Data Set")
             x_train, x, y_train, y, t_train, t = train_test_split(
                 self.x, self.y, self.t, test_size=self.test_size,
                 random_state=self.random_state)
