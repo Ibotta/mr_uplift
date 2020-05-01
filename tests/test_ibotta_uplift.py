@@ -57,3 +57,5 @@ class TestMRUplift(object):
             y.shape[1])
 
         assert uplift_model.get_erupt_curves()
+        
+        assert uplift_model.get_erupt_curves(x = x, y = y, t = t)
