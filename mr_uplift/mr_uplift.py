@@ -3,7 +3,7 @@ import pandas as pd
 import dill
 import copy
 from keras.models import load_model
-from mr_uplift.keras_model_functionality import train_model_multi_output_w_tmt
+from mr_uplift.keras_model_functionality import train_model_multi_output_w_tmt, gridsearch_mo_optim
 from mr_uplift.erupt import get_erupts_curves_aupc, get_best_tmts
 
 from keras.wrappers.scikit_learn import KerasRegressor
@@ -53,7 +53,7 @@ class MRUplift(object):
         self.__dict__.update(kw)
 
     def fit(self, x, y, t, test_size=0.7, random_state=22, param_grid=None,
-            n_jobs=-1, cv=5):
+            n_jobs=-1, cv=5, optimized_loss = False, copy_several_times = None):
         """Fits a Neural Network Model of the form y ~ f(t,x). Creates seperate
         transformers for y, t, and x and scales each. Assigns train / test split.
 
@@ -120,16 +120,25 @@ class MRUplift(object):
 
         x_t_train = np.concatenate([t_train_scaled, x_train_scaled], axis=1)
 
-        net = train_model_multi_output_w_tmt(x_t_train, y_train_scaled,
-                                             param_grid=param_grid,
-                                             n_jobs=n_jobs,
-                                             cv=cv)
+        if optimized_loss:
+            net = gridsearch_mo_optim(x_train_scaled, y_train_scaled, t_train_scaled,
+                                                 param_grid=param_grid,
+                                                 copy_several_times = copy_several_times)
+            self.best_score_net = net[2]
+            self.best_params_net = net[1]
+            self.model = net[0].get_layer('net_model')
 
-        self.best_score_net = net.best_score_
-        self.best_params_net = net.best_params_
-        self.model = net.best_estimator_.model
+        else:
+            net = train_model_multi_output_w_tmt(x_t_train, y_train_scaled,
+                                                 param_grid=param_grid,
+                                                 n_jobs=n_jobs,
+                                                 cv=cv)
 
-    def predict(self, x, t):
+            self.best_score_net = net.best_score_
+            self.best_params_net = net.best_params_
+            self.model = net.best_estimator_.model
+
+    def predict(self, x, t, inverse_scale = True):
         """Returns predictions of the fitted model. Transforms both x and t then
         concatenates those two variables into an array to predict on. Finally,
         an inverse transformer is applied on predictions to transform to original
@@ -149,11 +158,13 @@ class MRUplift(object):
             [self.t_ss.transform(t), self.x_ss.transform(x)], axis=1)
         preds = self.model.predict(x_t_new)
 
-        scaled_preds = self.y_ss.inverse_transform(preds)
+        if inverse_scale:
+            preds = self.y_ss.inverse_transform(preds)
 
-        return scaled_preds
+        return preds
 
-    def predict_ice(self, x=None, treatments=None, calibrator=False):
+    def predict_ice(self, x=None, treatments=None, calibrator=False,
+            inverse_scale = True):
         """Predicts all counterfactuals with new data. If no new data is
             assigned it will use test set data. Can subset to particular treatments
             using treatment assignment. Can also apply calibrator function (experimental)
@@ -184,7 +195,7 @@ class MRUplift(object):
             treatments = self.unique_t
 
         ice = np.array([self.predict(x_test, get_t_data(
-            t, x_test.shape[0])) for t in treatments])
+            t, x_test.shape[0]), inverse_scale = inverse_scale) for t in treatments])
 
         if calibrator:
             ice = self.calibrator.transform(ice)
@@ -192,7 +203,7 @@ class MRUplift(object):
         return ice
 
     def get_erupt_curves(self, x=None, y=None, t=None, objective_weights=None,
-                         treatments=None, calibrator=False):
+                         treatments=None, calibrator=False, inverse_scale = False):
         """Returns ERUPT Curves and distributions of treatments. If either x or
         y or t is not inputted it will use test data.
 
@@ -249,7 +260,8 @@ class MRUplift(object):
         t = t[to_keep_locs]
         x = x[to_keep_locs]
 
-        ice_preds = self.predict_ice(x, treatments, calibrator)
+        ice_preds = self.predict_ice(x, treatments, calibrator,
+        inverse_scale = inverse_scale)
 
         return get_erupts_curves_aupc(
             y,
@@ -300,7 +312,7 @@ class MRUplift(object):
 
 
     def predict_optimal_treatments(self, x, weights=None, treatments=None,
-                                   calibrator=False):
+                                   calibrator=False, inverse_scale = True):
         """Calculates optimal treatments of model output given explanatory
             variables and weights
 
@@ -320,7 +332,7 @@ class MRUplift(object):
         if treatments is None:
             treatments = self.unique_t
 
-        ice = self.predict_ice(x, treatments, calibrator)
+        ice = self.predict_ice(x, treatments, calibrator, inverse_scale = inverse_scale)
 
         if self.num_responses > 1:
 
@@ -361,7 +373,8 @@ class MRUplift(object):
         self.calibrator = calib
 
 
-    def permutation_varimp(self, weights=None, x=None, treatments=None, calibrator=False):
+    def permutation_varimp(self, weights=None, x=None, treatments=None, calibrator=False,
+        inverse_scale = True):
         """Variable importance metrics. This is based on permutation tests. For variable this permutes the column
         and then predicts and finds the optimal value given a set of weights. For each user it compares the optimal treatment of
         permuted column data with optimal treatment of non-permuted data and averages the result. The output is an index of how often
@@ -385,7 +398,7 @@ class MRUplift(object):
 
 
         original_decisions = self.predict_optimal_treatments(x, weights=weights, treatments=treatments,
-                                       calibrator=calibrator)
+                                       calibrator=calibrator, inverse_scale = inverse_scale)
         varimps = []
         for p in range(x.shape[1]):
 
@@ -397,7 +410,7 @@ class MRUplift(object):
 
             temp_decisions = self.predict_optimal_treatments(x_copy,
                 weights=weights, treatments=treatments,
-                calibrator=calibrator)
+                calibrator=calibrator, inverse_scale = inverse_scale)
             temp_varimp = (original_decisions == temp_decisions).mean()
 
             varimps.append(temp_varimp)
