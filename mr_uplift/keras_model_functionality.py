@@ -163,8 +163,22 @@ def optim_loss(yTrue,yPred):
     return -K.mean(output)
 
 
+def missing_mse_loss_multi_output(yTrue,yPred):
+    """Returns Loss for Keras. This is essentially a multi-output regression that
+    ignores missing data. It's similar in concept to matrix factorization with
+    missing data in that it only includes non missing values in loss function.
+    Args:
+        yTrue (keras array): True Values
+        yPred (keras array): Predictions
+    Returns:
+        Function to minimize
+    """
+    equals = K.cast(K.not_equal(yTrue, K.cast_to_floatx(-999.0)), dtype='float32')
+    output = (yTrue * equals  - yPred*equals )**2
+    return K.mean(output)
+
 def create_mo_optim_model(input_shape, num_responses, unique_treatments, num_layers,
-  num_nodes, dropout):
+  num_nodes, dropout, alpha):
 
   inputs_x = Input(shape=(input_shape,))
   util_weights = Input(shape=(num_responses,))
@@ -182,6 +196,11 @@ def create_mo_optim_model(input_shape, num_responses, unique_treatments, num_lay
 
   outputs = [model(x) for x in x_ts]
 
+
+  outputs_mse = [RepeatVector(1)(data) for data in outputs]
+  outputs_mse = concatenate(outputs_mse, axis = 1, name = 'outputs_mse')
+  #outputs_mse = Dense(num_responses, name = 'outputs_mse')(outputs_mse)
+
   outputs_weighted = [Multiply()([outs,util_weights]) for outs in outputs]
 
   #expand to 3 dimensions. Used to concatenate in next line.
@@ -189,34 +208,31 @@ def create_mo_optim_model(input_shape, num_responses, unique_treatments, num_lay
   outputs_weighted = concatenate(outputs_weighted, axis = 1)
 
   util_by_tmts = Lambda(lambda x: K.sum(x, axis=-1))(outputs_weighted)
-  util_by_tmts_prob = Lambda(lambda x: softmax(x))(util_by_tmts)
+  util_by_tmts_prob = Lambda(lambda x: softmax(x), name = 'util_by_tmts_prob')(util_by_tmts)
 
-  model = Model([inputs_x, util_weights], util_by_tmts_prob)
+  model = Model([inputs_x, util_weights], [util_by_tmts_prob,outputs_mse])
   model.compile(optimizer='rmsprop',
-                loss=optim_loss)
+                loss={'util_by_tmts_prob':optim_loss, 'outputs_mse': missing_mse_loss_multi_output},
+               loss_weights={'util_by_tmts_prob': alpha, 'outputs_mse': (1-alpha)})
 
   return model
 
+def copy_data(x,y,t, n):
+        x = np.concatenate([x.copy() for q in range(n)])
+        y = np.concatenate([y.copy() for q in range(n)])
+        t = np.concatenate([t.copy() for q in range(n)])
+        return x, y, t
 
 
-
-
-def gridsearch_mo_optim(x, y, t, param_grid = None, copy_several_times = None):
-
-    if copy_several_times is not None:
-        x = np.concatenate([x.copy() for q in range(copy_several_times)])
-        y = np.concatenate([y.copy() for q in range(copy_several_times)])
-        t = np.concatenate([t.copy() for q in range(copy_several_times)])
-
+def prepare_data(x, y ,t, copy_several_times = None):
     t_categorical = reduce_concat(t)
     unique_treatments = np.unique(t, axis = 0)
 
-    grid = ParameterGrid(param_grid)
+    new_dict = dict(zip(np.unique(t_categorical, axis= 0), [x for x in range(len(np.unique(t_categorical, axis= 0)))]))
+    big_y = np.zeros((y.shape[0], len(np.unique(t_categorical, axis= 0)), y.shape[1] )) - 999
+    for index in range(big_y.shape[0]):
+        big_y[index, new_dict[t_categorical[index]] , :] = np.array(y)[index,:]
 
-    kf = KFold(n_splits=2, shuffle=True, random_state=22)
-    kf.get_n_splits(y)
-
-    results = []
     n_obs = y.shape[0]
     utility_weights = np.concatenate([np.random.uniform(-1,1,n_obs).reshape(-1,1) for q in range(y.shape[1])], axis = 1)
     utility_weights = utility_weights/np.abs(utility_weights).sum(axis=1).reshape(-1,1)
@@ -224,36 +240,80 @@ def gridsearch_mo_optim(x, y, t, param_grid = None, copy_several_times = None):
 
     new_response = new_y.reshape(-1,1)*np.array(pd.get_dummies(pd.DataFrame(t_categorical).iloc[:,0]))
 
+    if copy_several_times is not None:
+        x = np.concatenate([x.copy() for q in range(copy_several_times)])
+        new_response = np.concatenate([new_response.copy() for q in range(copy_several_times)])
+        big_y = np.concatenate([big_y.copy() for q in range(copy_several_times)])
+        utility_weights = np.concatenate([utility_weights.copy() for q in range(copy_several_times)])
+
+    return x, utility_weights, new_response, big_y
+
+
+def gridsearch_mo_optim(x, y, t, param_grid = None, copy_several_times = None):
+
+    unique_treatments = np.unique(t, axis = 0)
+
+    grid = ParameterGrid(param_grid)
+
+    kf = KFold(n_splits=5, shuffle=True, random_state=22)
+    kf.get_n_splits(y)
+
+    results = []
     for params in grid:
         print(params)
         temp_results = []
+
         for train_index, test_index in kf.split(y):
+
+            x_train, utility_weights_train, new_response_train, big_y_train  = prepare_data(x[train_index],y[train_index], t[train_index], copy_several_times)
+            x_test, utility_weights_test, new_response_test, big_y_test   = prepare_data(x[test_index], y[test_index], t[test_index], copy_several_times)
 
             mod = create_mo_optim_model(input_shape = x.shape[1],
               num_responses = y.shape[1],
               unique_treatments = unique_treatments, num_layers = params['num_layers'],
               num_nodes = params['num_nodes'],
-              dropout = params['dropout'])
+              dropout = params['dropout'],
+              alpha = params['alpha'])
 
-            mod.fit([x[train_index], utility_weights[train_index]], new_response[train_index], epochs = params['epochs'],
-            batch_size = params['batch_size'], verbose = False)
+            mod.fit([x_train, utility_weights_train], [new_response_train, big_y_train],
+            epochs = params['epochs'],
+            batch_size = params['batch_size'],
+            verbose = False)
 
-            evaluation = mod.evaluate([x[test_index], utility_weights[test_index]], new_response[test_index])
+            preds = mod.predict([x_test, utility_weights_test])[0]
 
-            temp_results.append(evaluation)
+            optim_value_location = np.argmax(preds, axis = 1)
+            tmt_location = np.argmax(np.abs(new_response_test), axis = 1)
+
+            shuffled_optim_value_location = optim_value_location.copy()
+            np.random.shuffle(shuffled_optim_value_location)
+
+            proposed_model = np.where(optim_value_location.reshape(-1,1) == tmt_location )[0]
+            random_proposed_model = np.where(shuffled_optim_value_location.reshape(-1,1) == tmt_location )[0]
+
+            gains = new_response_test.sum(axis = 1)[proposed_model].mean() - new_response_test.sum(axis = 1)[random_proposed_model].mean()
+            print(gains)
+            temp_results.append(gains)
+            #evaluation = mod.evaluate([x[test_index], utility_weights[test_index]], [new_response[test_index],big_y[test_index,:,:]])
+            #temp_results.append(evaluation)
 
         results.append(np.mean(temp_results).mean())
 
-    optim_grid = [x for x in grid][np.argmin(np.array(results))]
+    optim_grid = [x for x in grid][np.argmax(np.array(results))]
 
     mod  = create_mo_optim_model(input_shape = x.shape[1],
             num_responses = y.shape[1],
             unique_treatments = unique_treatments, num_layers = optim_grid['num_layers'],
             num_nodes = optim_grid['num_nodes'],
-            dropout = optim_grid['dropout'])
+            dropout = optim_grid['dropout'],
+            alpha = optim_grid['alpha'])
 
-    mod.fit([x, utility_weights] , new_response, epochs = optim_grid['epochs'],
+
+    x, utility_weights, new_response, big_y  = prepare_data(x,y, t, copy_several_times)
+
+    mod.fit([x, utility_weights] , [new_response,big_y], epochs = optim_grid['epochs'],
         batch_size = optim_grid['batch_size'], verbose = False)
+
 
 
     return mod, optim_grid, results[np.argmin(np.array(results))]
