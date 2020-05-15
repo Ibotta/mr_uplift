@@ -14,6 +14,7 @@ from tensorflow.keras.losses import mean_squared_error
 from tensorflow.keras.activations import softmax
 from sklearn.model_selection import KFold, ParameterGrid
 
+from mr_uplift.erupt import get_weights, erupt
 
 def reduce_concat(x):
     """concatenates object into one string
@@ -223,50 +224,56 @@ def copy_data(x,y,t, n):
         t = np.concatenate([t.copy() for q in range(n)])
         return x, y, t
 
+def get_random_weights(y):
+    n_obs = y.shape[0]
+    n_responses = y.shape[1]
+    utility_weights = np.concatenate([np.random.uniform(-1,1,n_obs).reshape(-1,1) for q in range(n_responses)], axis = 1)
+    utility_weights = utility_weights/np.abs(utility_weights).sum(axis=1).reshape(-1,1)
+    return utility_weights
+
 
 def prepare_data(x, y ,t, copy_several_times = None):
+
+    if copy_several_times is not None:
+        x,y,t = copy_data(x,y,t, copy_several_times)
+
     t_categorical = reduce_concat(t)
     unique_treatments = np.unique(t, axis = 0)
 
-    new_dict = dict(zip(np.unique(t_categorical, axis= 0), [x for x in range(len(np.unique(t_categorical, axis= 0)))]))
+    new_dict = dict(zip(reduce_concat(unique_treatments),  range(len(reduce_concat(unique_treatments)))))
     big_y = np.zeros((y.shape[0], len(np.unique(t_categorical, axis= 0)), y.shape[1] )) - 999
     for index in range(big_y.shape[0]):
         big_y[index, new_dict[t_categorical[index]] , :] = np.array(y)[index,:]
 
-    n_obs = y.shape[0]
-    utility_weights = np.concatenate([np.random.uniform(-1,1,n_obs).reshape(-1,1) for q in range(y.shape[1])], axis = 1)
-    utility_weights = utility_weights/np.abs(utility_weights).sum(axis=1).reshape(-1,1)
+    utility_weights = get_random_weights(y)
     new_y = (utility_weights*np.array(y)).sum(axis=1)
 
-    new_response = new_y.reshape(-1,1)*np.array(pd.get_dummies(pd.DataFrame(t_categorical).iloc[:,0]))
+    temp_df = pd.get_dummies(pd.DataFrame(t_categorical).iloc[:,0])
+    temp_df = np.array(temp_df[[k for k,v in new_dict.items()]])
 
-    if copy_several_times is not None:
-        x = np.concatenate([x.copy() for q in range(copy_several_times)])
-        new_response = np.concatenate([new_response.copy() for q in range(copy_several_times)])
-        big_y = np.concatenate([big_y.copy() for q in range(copy_several_times)])
-        utility_weights = np.concatenate([utility_weights.copy() for q in range(copy_several_times)])
-
+    new_response = new_y.reshape(-1,1)*temp_df
     return x, utility_weights, new_response, big_y
 
 
-def gridsearch_mo_optim(x, y, t, param_grid = None, copy_several_times = None):
+def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
 
     unique_treatments = np.unique(t, axis = 0)
 
     grid = ParameterGrid(param_grid)
 
-    kf = KFold(n_splits=5, shuffle=True, random_state=22)
+    kf = KFold(n_splits=n_splits, shuffle=True, random_state=22)
     kf.get_n_splits(y)
 
     results = []
     for params in grid:
         print(params)
+        copy_several_times = params['copy_several_times']
         temp_results = []
 
         for train_index, test_index in kf.split(y):
 
             x_train, utility_weights_train, new_response_train, big_y_train  = prepare_data(x[train_index],y[train_index], t[train_index], copy_several_times)
-            x_test, utility_weights_test, new_response_test, big_y_test   = prepare_data(x[test_index], y[test_index], t[test_index], copy_several_times)
+            x_test, utility_weights_test, new_response_test, big_y_test   = prepare_data(x[test_index], y[test_index], t[test_index], None)
 
             mod = create_mo_optim_model(input_shape = x.shape[1],
               num_responses = y.shape[1],
@@ -285,15 +292,11 @@ def gridsearch_mo_optim(x, y, t, param_grid = None, copy_several_times = None):
             optim_value_location = np.argmax(preds, axis = 1)
             tmt_location = np.argmax(np.abs(new_response_test), axis = 1)
 
-            shuffled_optim_value_location = optim_value_location.copy()
-            np.random.shuffle(shuffled_optim_value_location)
+            weights = get_weights(tmt_location)
+            erupts = erupt(np.array(new_response_test).sum(axis=1).reshape(-1,1), tmt_location, optim_value_location, weights=weights, names=None)
 
-            proposed_model = np.where(optim_value_location.reshape(-1,1) == tmt_location )[0]
-            random_proposed_model = np.where(shuffled_optim_value_location.reshape(-1,1) == tmt_location )[0]
-
-            gains = new_response_test.sum(axis = 1)[proposed_model].mean() - new_response_test.sum(axis = 1)[random_proposed_model].mean()
-            print(gains)
-            temp_results.append(gains)
+            print(erupts)
+            temp_results.append(erupts['mean'])
             #evaluation = mod.evaluate([x[test_index], utility_weights[test_index]], [new_response[test_index],big_y[test_index,:,:]])
             #temp_results.append(evaluation)
 
@@ -316,4 +319,4 @@ def gridsearch_mo_optim(x, y, t, param_grid = None, copy_several_times = None):
 
 
 
-    return mod, optim_grid, results[np.argmin(np.array(results))]
+    return mod, optim_grid, results[np.argmax(np.array(results))]

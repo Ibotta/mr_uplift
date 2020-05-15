@@ -28,7 +28,7 @@ In a python enviornment :
     import numpy as np
     import pandas as pd
 
-    from dataset.data_simulation import get_simple_uplift_data
+    from mr_uplift.dataset.data_simulation import get_simple_uplift_data
     from mr_uplift.mr_uplift import MRUplift
 
     #Generate Data

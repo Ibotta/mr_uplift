@@ -53,8 +53,7 @@ class MRUplift(object):
         self.__dict__.update(kw)
 
     def fit(self, x, y, t, test_size=0.7, random_state=22, param_grid=None,
-            n_jobs=-1, cv=5, optimized_loss = False, copy_several_times = None,
-            alpha = .99):
+            n_jobs=-1, cv=5, optimized_loss = False):
         """Fits a Neural Network Model of the form y ~ f(t,x). Creates seperate
         transformers for y, t, and x and scales each. Assigns train / test split.
 
@@ -124,7 +123,7 @@ class MRUplift(object):
         if optimized_loss:
             net = gridsearch_mo_optim(x_train_scaled, y_train_scaled, t_train_scaled,
                                                  param_grid=param_grid,
-                                                 copy_several_times = copy_several_times)
+                                                 n_splits=cv)
             self.best_score_net = net[2]
             self.best_params_net = net[1]
             self.model = net[0].get_layer('net_model')
