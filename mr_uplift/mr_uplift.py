@@ -126,6 +126,7 @@ class MRUplift(object):
                                                  n_splits=cv)
             self.best_score_net = net[2]
             self.best_params_net = net[1]
+            #only need embedded layer and not whole net
             self.model = net[0].get_layer('net_model')
 
         else:

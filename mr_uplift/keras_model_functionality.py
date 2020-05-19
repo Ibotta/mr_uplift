@@ -121,10 +121,6 @@ def train_model_multi_output_w_tmt(x, y, param_grid=None, n_jobs=-1, cv=5):
     return grid_result
 
 
-
-
-
-
 def create_base_network(input_shape, num_responses,
   num_layers = 1, num_nodes = 8, dropout = .1, activation = 'relu'):
   '''Base network to be shared (eq. to feature extraction).
@@ -144,7 +140,6 @@ def create_base_network(input_shape, num_responses,
   model = Model(input, x, name = 'net_model')
 
   return model
-
 
 
 def optim_loss(yTrue,yPred):
@@ -178,53 +173,82 @@ def missing_mse_loss_multi_output(yTrue,yPred):
     output = (yTrue * equals  - yPred*equals )**2
     return K.mean(output)
 
+
 def create_mo_optim_model(input_shape, num_responses, unique_treatments, num_layers,
-  num_nodes, dropout, alpha):
+  num_nodes, dropout, activation, alpha):
+    """Returns model multiple-response uplift optimization model.
+    Args:
+        input_shape (int): number of features in training dataset
+        num_responses (int): number of response variables
+        unique_treatments (np.array): array of unique treatments
+        num_layers (real): number of num_layer
+        num_nodes (int): Number of nodes in layers
+        dropout (real): dropout percentage
+        activation (keras function): nonlinear activation function
+        alpha (float): number between 0 and 1. 1 corresponds to full optimization
+        0 corresponds to missing MSE loss and should be similiar to `train_model_multi_output_w_tmt`
+        function output. intended to be gridsearched over
+    Returns:
+        Keras Model
+    """
 
-  inputs_x = Input(shape=(input_shape,))
-  util_weights = Input(shape=(num_responses,))
+    inputs_x = Input(shape=(input_shape,))
+    util_weights = Input(shape=(num_responses,))
 
-  batch_size = K.shape(inputs_x)[0]
+    batch_size = K.shape(inputs_x)[0]
 
-  unique_tmts = [K.variable(x.reshape(1,unique_treatments.shape[1])) for x in unique_treatments]
-  unique_tmts_full = [K.tile(x, (batch_size,1)) for x in unique_tmts]
+    unique_tmts = [K.variable(x.reshape(1,unique_treatments.shape[1])) for x in unique_treatments]
+    unique_tmts_full = [K.tile(x, (batch_size,1)) for x in unique_tmts]
 
-  x_ts = [concatenate([tmts_full, inputs_x]) for tmts_full in unique_tmts_full]
+    x_ts = [concatenate([tmts_full, inputs_x]) for tmts_full in unique_tmts_full]
 
+    model = create_base_network(input_shape+unique_treatments.shape[1] ,num_responses,
+    num_layers, num_nodes, dropout, activation )
 
-  model = create_base_network(input_shape+unique_treatments.shape[1] ,num_responses,
-  num_layers, num_nodes, dropout )
+    outputs = [model(x) for x in x_ts]
 
-  outputs = [model(x) for x in x_ts]
+    outputs_mse = [RepeatVector(1)(data) for data in outputs]
+    outputs_mse = concatenate(outputs_mse, axis = 1, name = 'outputs_mse')
 
+    outputs_weighted = [Multiply()([outs,util_weights]) for outs in outputs]
+    #expand to 3 dimensions. Used to concatenate in next line.
+    outputs_weighted = [RepeatVector(1)(data) for data in outputs_weighted]
+    outputs_weighted = concatenate(outputs_weighted, axis = 1)
 
-  outputs_mse = [RepeatVector(1)(data) for data in outputs]
-  outputs_mse = concatenate(outputs_mse, axis = 1, name = 'outputs_mse')
-  #outputs_mse = Dense(num_responses, name = 'outputs_mse')(outputs_mse)
+    util_by_tmts = Lambda(lambda x: K.sum(x, axis=-1))(outputs_weighted)
+    util_by_tmts_prob = Lambda(lambda x: softmax(x), name = 'util_by_tmts_prob')(util_by_tmts)
 
-  outputs_weighted = [Multiply()([outs,util_weights]) for outs in outputs]
-
-  #expand to 3 dimensions. Used to concatenate in next line.
-  outputs_weighted = [RepeatVector(1)(data) for data in outputs_weighted]
-  outputs_weighted = concatenate(outputs_weighted, axis = 1)
-
-  util_by_tmts = Lambda(lambda x: K.sum(x, axis=-1))(outputs_weighted)
-  util_by_tmts_prob = Lambda(lambda x: softmax(x), name = 'util_by_tmts_prob')(util_by_tmts)
-
-  model = Model([inputs_x, util_weights], [util_by_tmts_prob,outputs_mse])
-  model.compile(optimizer='rmsprop',
+    model = Model([inputs_x, util_weights], [util_by_tmts_prob,outputs_mse])
+    model.compile(optimizer='rmsprop',
                 loss={'util_by_tmts_prob':optim_loss, 'outputs_mse': missing_mse_loss_multi_output},
                loss_weights={'util_by_tmts_prob': alpha, 'outputs_mse': (1-alpha)})
 
-  return model
+    return model
+
 
 def copy_data(x,y,t, n):
-        x = np.concatenate([x.copy() for q in range(n)])
-        y = np.concatenate([y.copy() for q in range(n)])
-        t = np.concatenate([t.copy() for q in range(n)])
-        return x, y, t
+    """Copys input data n times. Found to be helpul in building create_mo_optim_model
+    Args:
+        x (arrary): input data
+        y (arrary): response data
+        t (arrary): treatment data
+        n (int): number of times to copy
+    Returns:
+        copied data
+    """
+    x = np.concatenate([x.copy() for q in range(n)])
+    y = np.concatenate([y.copy() for q in range(n)])
+    t = np.concatenate([t.copy() for q in range(n)])
+    return x, y, t
+
 
 def get_random_weights(y):
+    """Creates a random uniform weight matrix
+    Args:
+        y (arrary): response data
+    Returns:
+        random weights of dimentions y
+    """
     n_obs = y.shape[0]
     n_responses = y.shape[1]
     utility_weights = np.concatenate([np.random.uniform(-1,1,n_obs).reshape(-1,1) for q in range(n_responses)], axis = 1)
@@ -232,30 +256,70 @@ def get_random_weights(y):
     return utility_weights
 
 
-def prepare_data(x, y ,t, copy_several_times = None):
+def prepare_data_optimized_loss(x, y ,t, unique_treatments, copy_several_times = None):
+    """Prepares dataset to be used in `create_mo_optim_model` model build.
+    Args:
+        x (np array): explanatory variables
+        y (np array): response variables
+        t (np array): treatment variable
+        unique_tmts (np array): unique treatment variables
+        copy_several_times (int): number of times to repeat dataset and create random weights
+    Returns:
+        x (np array): explanatory variables. Potentially repeated severa times.
+        utility_weights (np array): random utility weights for each observation
+        missing_utility (np array): new weighted sum response matrix. Has non-zero
+        elements for treatment column they saw
+        missing_y_mat (np array): 3-d array of num_obs, num_tmts, num_response variables.
+        has non -999 values for
+    """
 
     if copy_several_times is not None:
         x,y,t = copy_data(x,y,t, copy_several_times)
+    unique_treatments = unique_treatments.reshape(unique_treatments.shape[0], -1)
 
-    t_categorical = reduce_concat(t)
-    unique_treatments = np.unique(t, axis = 0)
+    if(unique_treatments.shape[1] > 1):
+        str_t = reduce_concat(t)
+        str_unique_treatments = reduce_concat(unique_treatments)
+    else:
+        str_t = [str(q) for q in np.squeeze(t)]
+        str_unique_treatments = ([str(q) for q in np.squeeze(unique_treatments)])
 
-    new_dict = dict(zip(reduce_concat(unique_treatments),  range(len(reduce_concat(unique_treatments)))))
-    big_y = np.zeros((y.shape[0], len(np.unique(t_categorical, axis= 0)), y.shape[1] )) - 999
-    for index in range(big_y.shape[0]):
-        big_y[index, new_dict[t_categorical[index]] , :] = np.array(y)[index,:]
+    #used to maintain order of treatments
+    treatments_order = dict(zip(str_unique_treatments,  range(len(str_unique_treatments))))
 
+    #creates 3-d matrix num_observations, num_treatments, num_responses. Has response variables
+    #for treatment locations that observation was assigned. Else it recievd -999. This is a special value for loss function
+    missing_y_mat = np.zeros((y.shape[0], len(unique_treatments), y.shape[1])) - 999
+    for index in range(missing_y_mat.shape[0]):
+        missing_y_mat[index, treatments_order[str_t[index]] , :] = np.array(y)[index,:]
+
+    #creates new response variable
     utility_weights = get_random_weights(y)
-    new_y = (utility_weights*np.array(y)).sum(axis=1)
+    utility_y = (utility_weights*np.array(y)).sum(axis=1)
 
-    temp_df = pd.get_dummies(pd.DataFrame(t_categorical).iloc[:,0])
-    temp_df = np.array(temp_df[[k for k,v in new_dict.items()]])
+    #Creates an num_obs by num_treatments mat. Has new weighted utlity response
+    #if user recieved treatment, else 0
+    missing_utility = pd.get_dummies(pd.DataFrame(str_t).iloc[:,0])
+    missing_utility = np.array(missing_utility[[k for k,v in treatments_order.items()]])
+    missing_utility = utility_y.reshape(-1,1)*missing_utility
 
-    new_response = new_y.reshape(-1,1)*temp_df
-    return x, utility_weights, new_response, big_y
+    return x, utility_weights, missing_utility, missing_y_mat
 
 
 def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
+    """Gridsearches over create_mo_optim_model. Since it has multiple inputs/ outputs
+    I 'rolled' my own.
+
+    Args:
+        x (np array): explanatory variables
+        y (np array): response variables
+        t (np array): treatment variable
+        param_grid (dictionary): parameter grid values
+    Returns:
+        mod (keras model): Fitted model with best hyperparameters
+        optim_grid (dictionary): best hyperparameters in dictionary
+        model_score (float): best score of data
+    """
 
     unique_treatments = np.unique(t, axis = 0)
 
@@ -266,21 +330,22 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
 
     results = []
     for params in grid:
-        print(params)
         copy_several_times = params['copy_several_times']
         temp_results = []
 
         for train_index, test_index in kf.split(y):
 
-            x_train, utility_weights_train, new_response_train, big_y_train  = prepare_data(x[train_index],y[train_index], t[train_index], copy_several_times)
-            x_test, utility_weights_test, new_response_test, big_y_test   = prepare_data(x[test_index], y[test_index], t[test_index], None)
+            x_train, utility_weights_train, new_response_train, big_y_train  = prepare_data_optimized_loss(x[train_index],y[train_index], t[train_index], unique_treatments, copy_several_times)
+            x_test, utility_weights_test, new_response_test, big_y_test   = prepare_data_optimized_loss(x[test_index], y[test_index], t[test_index], unique_treatments, None)
 
             mod = create_mo_optim_model(input_shape = x.shape[1],
               num_responses = y.shape[1],
-              unique_treatments = unique_treatments, num_layers = params['num_layers'],
+              unique_treatments = unique_treatments,
+              num_layers = params['num_layers'],
               num_nodes = params['num_nodes'],
               dropout = params['dropout'],
-              alpha = params['alpha'])
+              alpha = params['alpha'],
+              activation = params['activation'])
 
             mod.fit([x_train, utility_weights_train], [new_response_train, big_y_train],
             epochs = params['epochs'],
@@ -295,10 +360,7 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
             weights = get_weights(tmt_location)
             erupts = erupt(np.array(new_response_test).sum(axis=1).reshape(-1,1), tmt_location, optim_value_location, weights=weights, names=None)
 
-            print(erupts)
             temp_results.append(erupts['mean'])
-            #evaluation = mod.evaluate([x[test_index], utility_weights[test_index]], [new_response[test_index],big_y[test_index,:,:]])
-            #temp_results.append(evaluation)
 
         results.append(np.mean(temp_results).mean())
 
@@ -309,14 +371,13 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
             unique_treatments = unique_treatments, num_layers = optim_grid['num_layers'],
             num_nodes = optim_grid['num_nodes'],
             dropout = optim_grid['dropout'],
-            alpha = optim_grid['alpha'])
+            alpha = optim_grid['alpha'],
+            activation = optim_grid['activation'])
 
 
-    x, utility_weights, new_response, big_y  = prepare_data(x,y, t, copy_several_times)
+    x, utility_weights, new_response, big_y  = prepare_data_optimized_loss(x,y,t,unique_treatments, copy_several_times)
 
     mod.fit([x, utility_weights] , [new_response,big_y], epochs = optim_grid['epochs'],
         batch_size = optim_grid['batch_size'], verbose = False)
-
-
 
     return mod, optim_grid, results[np.argmax(np.array(results))]
