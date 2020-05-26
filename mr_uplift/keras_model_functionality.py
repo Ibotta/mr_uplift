@@ -251,8 +251,11 @@ def get_random_weights(y):
     """
     n_obs = y.shape[0]
     n_responses = y.shape[1]
-    utility_weights = np.concatenate([np.random.uniform(-1,1,n_obs).reshape(-1,1) for q in range(n_responses)], axis = 1)
-    utility_weights = utility_weights/np.abs(utility_weights).sum(axis=1).reshape(-1,1)
+    if n_responses == 1:
+        utility_weights = np.ones(n_obs).reshape(-1,1)
+    else:
+        utility_weights = np.concatenate([np.random.uniform(-1,1,n_obs).reshape(-1,1) for q in range(n_responses)], axis = 1)
+        utility_weights = utility_weights/np.abs(utility_weights).sum(axis=1).reshape(-1,1)
     return utility_weights
 
 
@@ -377,7 +380,7 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
 
     x, utility_weights, new_response, big_y  = prepare_data_optimized_loss(x,y,t,unique_treatments, copy_several_times)
 
-    mod.fit([x, utility_weights] , [new_response,big_y], epochs = optim_grid['epochs'],
+    mod.fit([x, utility_weights] , [new_response, big_y], epochs = optim_grid['epochs'],
         batch_size = optim_grid['batch_size'], verbose = False)
 
     return mod, optim_grid, results[np.argmax(np.array(results))]

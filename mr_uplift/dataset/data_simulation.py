@@ -25,6 +25,31 @@ def get_simple_uplift_data(num_obs):
 
     return y, x, tmt
 
+    
+def get_sin_uplift_data(num_obs):
+    """Creates sample uplift dataset with 3 variables.
+    First two variables are of form y_i = x_i*t + e for two responses
+    Thrid response is just noise
+
+    Args:
+        num_obs (int): number of observations to simulate from
+    Returns:
+        responses, explanatory variables, and treatment
+    """
+
+    tmt = np.random.binomial(1, .5, num_obs)
+    x = np.concatenate([np.random.uniform(0, 1, num_obs).reshape(-1,1),
+    np.random.uniform(0, 1, num_obs).reshape(-1,1)], axis = 1)
+
+    y_1 = np.sin(tmt*20*x[:,0]) + np.random.normal(0, .1, num_obs)
+    y_2 = np.sin(tmt*20*x[:,1]) + np.random.normal(0, .1, num_obs)
+    y_3 =  np.random.normal(0, 1, num_obs).reshape(-1,1)
+
+    y = np.concatenate([y_1.reshape(-1,1), y_2.reshape(-1,1),y_3.reshape(-1,1)], axis = 1)
+
+    return y, x, tmt
+
+
 
 def get_no_noise_data(num_obs):
     """Creates sample uplift dataset with 3 variables.

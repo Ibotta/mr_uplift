@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import dill
 import copy
-from keras.models import load_model
+from tensorflow.keras.models import load_model
 from mr_uplift.keras_model_functionality import train_model_multi_output_w_tmt, gridsearch_mo_optim
 from mr_uplift.erupt import get_erupts_curves_aupc, get_best_tmts
 
