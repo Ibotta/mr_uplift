@@ -259,13 +259,16 @@ def get_random_weights(y):
     return utility_weights
 
 
-def prepare_data_optimized_loss(x, y ,t, unique_treatments, copy_several_times = None):
+def prepare_data_optimized_loss(x, y ,t, unique_treatments, weighted_treatments = False,
+copy_several_times = None):
     """Prepares dataset to be used in `create_mo_optim_model` model build.
     Args:
         x (np array): explanatory variables
         y (np array): response variables
         t (np array): treatment variable
         unique_tmts (np array): unique treatment variables
+        weighted_treatments (Boolean): If there are non-uniform treatments this will
+        weight observations inverse proportional to frequency of treatment
         copy_several_times (int): number of times to repeat dataset and create random weights
     Returns:
         x (np array): explanatory variables. Potentially repeated severa times.
@@ -299,6 +302,14 @@ def prepare_data_optimized_loss(x, y ,t, unique_treatments, copy_several_times =
     #creates new response variable
     utility_weights = get_random_weights(y)
     utility_y = (utility_weights*np.array(y)).sum(axis=1)
+    #get weights of treatments if treatments not uniform
+    if weighted_treatments:
+        weights = np.array(get_weights(str_t))
+        weights = weights * len(weights)/weights.sum()
+    else:
+        weights = np.ones(len(str_t))
+    
+    utility_y = utility_y.reshape(-1,1)*weights.reshape(-1,1)
 
     #Creates an num_obs by num_treatments mat. Has new weighted utlity response
     #if user recieved treatment, else 0
@@ -338,8 +349,10 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
 
         for train_index, test_index in kf.split(y):
 
-            x_train, utility_weights_train, new_response_train, big_y_train  = prepare_data_optimized_loss(x[train_index],y[train_index], t[train_index], unique_treatments, copy_several_times)
-            x_test, utility_weights_test, new_response_test, big_y_test   = prepare_data_optimized_loss(x[test_index], y[test_index], t[test_index], unique_treatments, None)
+            x_train, utility_weights_train, new_response_train, big_y_train  = prepare_data_optimized_loss(x[train_index],y[train_index],
+            t[train_index], unique_treatments, weighted_treatments = True, copy_several_times = copy_several_times)
+            x_test, utility_weights_test, new_response_test, big_y_test   = prepare_data_optimized_loss(x[test_index], y[test_index],
+            t[test_index], unique_treatments, weighted_treatments = False, copy_several_times = None)
 
             mod = create_mo_optim_model(input_shape = x.shape[1],
               num_responses = y.shape[1],
@@ -378,7 +391,8 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
             activation = optim_grid['activation'])
 
 
-    x, utility_weights, new_response, big_y  = prepare_data_optimized_loss(x,y,t,unique_treatments, copy_several_times)
+    x, utility_weights, new_response, big_y  = prepare_data_optimized_loss(x,y,t,unique_treatments,
+    weighted_treatments = True, copy_several_times = copy_several_times)
 
     mod.fit([x, utility_weights] , [new_response, big_y], epochs = optim_grid['epochs'],
         batch_size = optim_grid['batch_size'], verbose = False)
