@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import dill
 import copy
-from keras.models import load_model
-from mr_uplift.keras_model_functionality import train_model_multi_output_w_tmt
+from tensorflow.keras.models import load_model
+from mr_uplift.keras_model_functionality import train_model_multi_output_w_tmt, gridsearch_mo_optim
 from mr_uplift.erupt import get_erupts_curves_aupc, get_best_tmts
 
 from keras.wrappers.scikit_learn import KerasRegressor
@@ -53,7 +53,7 @@ class MRUplift(object):
         self.__dict__.update(kw)
 
     def fit(self, x, y, t, test_size=0.7, random_state=22, param_grid=None,
-            n_jobs=-1, cv=5):
+            n_jobs=-1, cv=5, optimized_loss = False):
         """Fits a Neural Network Model of the form y ~ f(t,x). Creates seperate
         transformers for y, t, and x and scales each. Assigns train / test split.
 
@@ -120,14 +120,24 @@ class MRUplift(object):
 
         x_t_train = np.concatenate([t_train_scaled, x_train_scaled], axis=1)
 
-        net = train_model_multi_output_w_tmt(x_t_train, y_train_scaled,
-                                             param_grid=param_grid,
-                                             n_jobs=n_jobs,
-                                             cv=cv)
+        if optimized_loss:
+            net = gridsearch_mo_optim(x_train_scaled, y_train_scaled, t_train_scaled,
+                                                 param_grid=param_grid,
+                                                 n_splits=cv)
+            self.best_score_net = net[2]
+            self.best_params_net = net[1]
+            #only need embedded layer and not whole net
+            self.model = net[0].get_layer('net_model')
 
-        self.best_score_net = net.best_score_
-        self.best_params_net = net.best_params_
-        self.model = net.best_estimator_.model
+        else:
+            net = train_model_multi_output_w_tmt(x_t_train, y_train_scaled,
+                                                 param_grid=param_grid,
+                                                 n_jobs=n_jobs,
+                                                 cv=cv)
+
+            self.best_score_net = net.best_score_
+            self.best_params_net = net.best_params_
+            self.model = net.best_estimator_.model
 
     def predict(self, x, t):
         """Returns predictions of the fitted model. Transforms both x and t then
@@ -149,9 +159,9 @@ class MRUplift(object):
             [self.t_ss.transform(t), self.x_ss.transform(x)], axis=1)
         preds = self.model.predict(x_t_new)
 
-        scaled_preds = self.y_ss.inverse_transform(preds)
+        preds = self.y_ss.inverse_transform(preds)
 
-        return scaled_preds
+        return preds
 
     def predict_ice(self, x=None, treatments=None, calibrator=False):
         """Predicts all counterfactuals with new data. If no new data is
