@@ -15,7 +15,7 @@ def parse_description(description):
         ])
 
 DISTNAME = "mr_uplift"
-VERSION = "0.0.4"
+VERSION = "0.0.5"
 DESCRIPTION = "Machine learning tools for uplift models"
 with open("README.rst") as f:
     LONG_DESCRIPTION = parse_description(f.read())
