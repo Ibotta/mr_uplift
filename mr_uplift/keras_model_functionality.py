@@ -260,7 +260,7 @@ def get_random_weights(y):
 
 
 def prepare_data_optimized_loss(x, y ,t, unique_treatments, weighted_treatments = False,
-copy_several_times = None):
+copy_several_times = None, random_seed = 22):
     """Prepares dataset to be used in `create_mo_optim_model` model build.
     Args:
         x (np array): explanatory variables
@@ -270,6 +270,7 @@ copy_several_times = None):
         weighted_treatments (Boolean): If there are non-uniform treatments this will
         weight observations inverse proportional to frequency of treatment
         copy_several_times (int): number of times to repeat dataset and create random weights
+        random_seed (int): seed for rng
     Returns:
         x (np array): explanatory variables. Potentially repeated severa times.
         utility_weights (np array): random utility weights for each observation
@@ -301,6 +302,7 @@ copy_several_times = None):
       missing_y_mat[temp_locs, value,:] = np.array(y)[temp_locs,:]
 
     #creates new response variable
+    np.random.seed(random_seed)
     utility_weights = get_random_weights(y)
     utility_y = (utility_weights*np.array(y)).sum(axis=1)
     #get weights of treatments if treatments not uniform
@@ -367,7 +369,7 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
             mod.fit([x_train, utility_weights_train], [new_response_train, big_y_train],
             epochs = params['epochs'],
             batch_size = params['batch_size'],
-            verbose = True)
+            verbose = False)
 
             preds = mod.predict([x_test, utility_weights_test])[0]
 
