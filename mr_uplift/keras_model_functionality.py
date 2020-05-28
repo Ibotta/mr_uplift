@@ -260,7 +260,7 @@ def get_random_weights(y):
 
 
 def prepare_data_optimized_loss(x, y ,t, unique_treatments, weighted_treatments = False,
-copy_several_times = None):
+copy_several_times = None, random_seed = 22):
     """Prepares dataset to be used in `create_mo_optim_model` model build.
     Args:
         x (np array): explanatory variables
@@ -270,6 +270,7 @@ copy_several_times = None):
         weighted_treatments (Boolean): If there are non-uniform treatments this will
         weight observations inverse proportional to frequency of treatment
         copy_several_times (int): number of times to repeat dataset and create random weights
+        random_seed (int): seed for rng
     Returns:
         x (np array): explanatory variables. Potentially repeated severa times.
         utility_weights (np array): random utility weights for each observation
@@ -296,10 +297,12 @@ copy_several_times = None):
     #creates 3-d matrix num_observations, num_treatments, num_responses. Has response variables
     #for treatment locations that observation was assigned. Else it recievd -999. This is a special value for loss function
     missing_y_mat = np.zeros((y.shape[0], len(unique_treatments), y.shape[1])) - 999
-    for index in range(missing_y_mat.shape[0]):
-        missing_y_mat[index, treatments_order[str_t[index]] , :] = np.array(y)[index,:]
+    for key, value in treatments_order.items():
+      temp_locs = np.where(key == np.array(str_t))[0]
+      missing_y_mat[temp_locs, value,:] = np.array(y)[temp_locs,:]
 
     #creates new response variable
+    np.random.seed(random_seed)
     utility_weights = get_random_weights(y)
     utility_y = (utility_weights*np.array(y)).sum(axis=1)
     #get weights of treatments if treatments not uniform
@@ -308,7 +311,7 @@ copy_several_times = None):
         weights = weights * len(weights)/weights.sum()
     else:
         weights = np.ones(len(str_t))
-    
+
     utility_y = utility_y.reshape(-1,1)*weights.reshape(-1,1)
 
     #Creates an num_obs by num_treatments mat. Has new weighted utlity response
