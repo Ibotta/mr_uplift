@@ -9,6 +9,7 @@ from mr_uplift.erupt import get_erupts_curves_aupc, get_best_tmts
 from keras.wrappers.scikit_learn import KerasRegressor
 from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from mr_uplift.calibrate_uplift import UpliftCalibration
 
@@ -53,7 +54,7 @@ class MRUplift(object):
         self.__dict__.update(kw)
 
     def fit(self, x, y, t, test_size=0.7, random_state=22, param_grid=None,
-            n_jobs=-1, cv=5, optimized_loss = False):
+            n_jobs=-1, cv=5, optimized_loss = False, PCA_x = False, PCA_y = False):
         """Fits a Neural Network Model of the form y ~ f(t,x). Creates seperate
         transformers for y, t, and x and scales each. Assigns train / test split.
 
@@ -70,7 +71,10 @@ class MRUplift(object):
         param_grid (dict): Parameters of keras model to gridsearch over.
         n_jobs (int): number of cores to run on.
         cv (int): number of cross vaildation_folds
-
+        optimized_loss (boolean): If True will use the optimized loss funcionality.
+        PCA_x (boolean): If True it will use PCA to preprocess explanatory variables
+        PCA_y (boolean): If True it will use PCA to preprocess response variables
+        
         Returns:
         Builds a neural network and assigns it to self.model
         """
@@ -102,12 +106,29 @@ class MRUplift(object):
         else:
             self.t_names = None
 
-        x_train, x_test, y_train, y_test, t_train, t_test = train_test_split(
-            self.x, self.y, self.t, test_size=self.test_size,
-            random_state=self.random_state)
+        #if no holdout set the test_size to zero
+        if self.test_size == 0:
+            x_train = x
+            y_train = y
+            t_train = t
+        else:
+            x_train, x_test, y_train, y_test, t_train, t_test = train_test_split(
+                self.x, self.y, self.t, test_size=self.test_size,
+                random_state=self.random_state)
 
-        self.y_ss = StandardScaler()
-        self.x_ss = StandardScaler()
+        #I've found that scaling features helps estimate nets.
+        #Using PCA of features space should also help.
+
+        if PCA_y:
+            self.y_ss = PCA(whiten = True)
+        else:
+            self.y_ss = StandardScaler()
+
+        if PCA_x:
+            self.x_ss = PCA(whiten = True)
+        else:
+            self.x_ss = StandardScaler()
+
         self.t_ss = StandardScaler()
 
         self.y_ss.fit(y_train)
@@ -309,14 +330,14 @@ class MRUplift(object):
         self.__dict__.update(uplift_class.__dict__)
 
 
-    def predict_optimal_treatments(self, x, weights=None, treatments=None,
+    def predict_optimal_treatments(self, x, objective_weights=None, treatments=None,
                                    calibrator=False):
         """Calculates optimal treatments of model output given explanatory
             variables and weights
 
         Args:
           x (np.array): new data to predict. Will use test data if not given
-          weight (np.array): set of weights of length num_responses to maximize.
+          objective_weights (np.array): set of weights of length num_responses to maximize.
             is required for multi output decisions
           treatments (np.array): Treatments to predict on. If none assigned then
           original training treatments are used.
@@ -338,7 +359,7 @@ class MRUplift(object):
                 unique_t = reduce_concat(treatments)
             else:
                 unique_t = treatments
-            best_treatments = get_best_tmts(weights, ice, treatments)
+            best_treatments = get_best_tmts(objective_weights, ice, treatments)
         else:
             best_treatments = np.argmax(ice, axis=0)
 
@@ -371,14 +392,14 @@ class MRUplift(object):
         self.calibrator = calib
 
 
-    def permutation_varimp(self, weights=None, x=None, treatments=None, calibrator=False):
+    def permutation_varimp(self, objective_weights=None, x=None, treatments=None, calibrator=False):
         """Variable importance metrics. This is based on permutation tests. For variable this permutes the column
         and then predicts and finds the optimal value given a set of weights. For each user it compares the optimal treatment of
         permuted column data with optimal treatment of non-permuted data and averages the result. The output is an index of how often
         the permuted column disagrees with unpermuted columns.
 
         Args:
-          weights (np.array): set of weights of length num_responses to maximize.
+          objective_weights (np.array): set of weights of length num_responses to maximize.
             is required for multi output decisions
           x (np.array): new data to predict. Will use test data if not given
             treatments (np.array): Treatments to predict on. If none assigned then
@@ -394,7 +415,8 @@ class MRUplift(object):
                 random_state=self.random_state)
 
 
-        original_decisions = self.predict_optimal_treatments(x, weights=weights, treatments=treatments,
+        original_decisions = self.predict_optimal_treatments(x,
+        objective_weights=objective_weights, treatments=treatments,
                                        calibrator=calibrator)
         varimps = []
         for p in range(x.shape[1]):
@@ -406,7 +428,7 @@ class MRUplift(object):
             x_copy[:,p] = x_copy[:,p][shuffled_index]
 
             temp_decisions = self.predict_optimal_treatments(x_copy,
-                weights=weights, treatments=treatments,
+                objective_weights=objective_weights, treatments=treatments,
                 calibrator=calibrator)
             temp_varimp = (original_decisions == temp_decisions).mean()
 
@@ -416,7 +438,7 @@ class MRUplift(object):
         varimps = 1 - np.array(varimps)
 
         varimps_pd = pd.DataFrame(np.array(varimps))
-        varimps_pd.columns = ['permuation_varimp_metric']
+        varimps_pd.columns = ['permutation_varimp_metric']
 
         if self.x_names is not None:
             varimps_pd['var_names'] = self.x_names
