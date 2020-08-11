@@ -242,20 +242,20 @@ def copy_data(x,y,t, n):
     return x, y, t
 
 
-def get_random_weights(y):
+def get_random_weights(y, random_seed = 22):
     """Creates a random uniform weight matrix
     Args:
         y (arrary): response data
     Returns:
         random weights of dimentions y
     """
+    np.random.seed(random_seed)
     n_obs = y.shape[0]
     n_responses = y.shape[1]
     if n_responses == 1:
         utility_weights = np.ones(n_obs).reshape(-1,1)
     else:
         utility_weights = np.concatenate([np.random.uniform(-1,1,n_obs).reshape(-1,1) for q in range(n_responses)], axis = 1)
-        utility_weights = utility_weights/np.abs(utility_weights).sum(axis=1).reshape(-1,1)
     return utility_weights
 
 
@@ -302,8 +302,7 @@ copy_several_times = None, random_seed = 22):
       missing_y_mat[temp_locs, value,:] = np.array(y)[temp_locs,:]
 
     #creates new response variable
-    np.random.seed(random_seed)
-    utility_weights = get_random_weights(y)
+    utility_weights = get_random_weights(y, random_seed = random_seed)
     utility_y = (utility_weights*np.array(y)).sum(axis=1)
     #get weights of treatments if treatments not uniform
     if weighted_treatments:
