@@ -12,7 +12,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from mr_uplift.calibrate_uplift import UpliftCalibration
-from sklearn.ensemble import RandomForestRegressor
 
 def get_t_data(values, num_obs):
     """Repeats treatment to several rows and reshapes it. Used to append treatments
@@ -54,8 +53,7 @@ class MRUplift(object):
         self.__dict__.update(kw)
 
     def fit(self, x, y, t, test_size=0.7, random_state=22, param_grid=None,
-            n_jobs=-1, cv=5, optimized_loss = False, PCA_x = False, PCA_y = False,
-            rf_whiten = False):
+            n_jobs=-1, cv=5, optimized_loss = False, PCA_x = False, PCA_y = False):
         """Fits a Neural Network Model of the form y ~ f(t,x). Creates seperate
         transformers for y, t, and x and scales each. Assigns train / test split.
 
@@ -88,12 +86,6 @@ class MRUplift(object):
         self.x = np.array(x)
         self.y = np.array(y)
         self.t = np.array(t)
-
-        if rf_whiten:
-            rf = RandomForestRegressor(oob_score = True,n_jobs = -1)
-            rf.fit(self.x,self.y)
-            self.y = y-rf.oob_prediction_
-
 
         self.test_size = test_size
         self.random_state = random_state
@@ -146,10 +138,7 @@ class MRUplift(object):
         x_train_scaled = self.x_ss.transform(x_train)
         t_train_scaled = self.t_ss.transform(t_train)
 
-
         x_t_train = np.concatenate([t_train_scaled, x_train_scaled], axis=1)
-
-
 
         if optimized_loss:
             net = gridsearch_mo_optim(x_train_scaled, y_train_scaled, t_train_scaled,
