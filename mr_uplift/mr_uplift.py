@@ -3,7 +3,7 @@ import pandas as pd
 import dill
 import copy
 from tensorflow.keras.models import load_model
-from mr_uplift.keras_model_functionality import train_model_multi_output_w_tmt, gridsearch_mo_optim
+from mr_uplift.keras_model_functionality import train_model_multi_output_w_tmt, gridsearch_mo_optim, get_random_weights
 from mr_uplift.erupt import get_erupts_curves_aupc, get_best_tmts, erupt, get_weights
 
 from keras.wrappers.scikit_learn import KerasRegressor
@@ -12,7 +12,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from mr_uplift.calibrate_uplift import UpliftCalibration
-
 
 def get_t_data(values, num_obs):
     """Repeats treatment to several rows and reshapes it. Used to append treatments
@@ -446,41 +445,41 @@ class MRUplift(object):
 
         return varimps_pd
 
-def get_random_erupts(self, x = None, y = None, t = None, objective_weights = None,
-    treatments = None, calibrator = None, random_seed = 22):
-    """OOS metric calculation for full range of a ranom set of objective weights.
-    Idea is to calculate full range of objective functions. Here each observation
-    is assigned a random objective function and the ERUPT is calculated on this.
+    def get_random_erupts(self, x = None, y = None, t = None, objective_weights = None,
+        treatments = None, calibrator = None, random_seed = 22):
+        """OOS metric calculation for full range of a ranom set of objective weights.
+        Idea is to calculate full range of objective functions. Here each observation
+        is assigned a random objective function and the ERUPT is calculated on this.
 
-    Args:
-      x (np.array): new data to predict. Will use test data if not given
-      y (np.array): responses
-      t (np.array): treatments
-      objective_weights (np.array): of dim (num_observations by num_response_variables).
-      if none is assigned it randomly create weights
-      treatments (np.array): treatments to use in erupt calculations
-      calibrator (boolean): If true will use the trained calibrator to transform
-        responses. Otherwise will use the response inverse transformer
-      random_seed (int): seed for random weights matrix if none are assigned
-    Returns:
-      mean and standardization of ERUPT 
-    """
+        Args:
+          x (np.array): new data to predict. Will use test data if not given
+          y (np.array): responses
+          t (np.array): treatments
+          objective_weights (np.array): of dim (num_observations by num_response_variables).
+          if none is assigned it randomly create weights
+          treatments (np.array): treatments to use in erupt calculations
+          calibrator (boolean): If true will use the trained calibrator to transform
+            responses. Otherwise will use the response inverse transformer
+          random_seed (int): seed for random weights matrix if none are assigned
+        Returns:
+          mean and standardization of ERUPT
+        """
 
-    if x is None:
-        x_train, x, y_train, y, t_train, t = train_test_split(
-            self.x, self.y, self.t, test_size=self.test_size,
-            random_state=self.random_state)
+        if x is None:
+            x_train, x, y_train, y, t_train, t = train_test_split(
+                self.x, self.y, self.t, test_size=self.test_size,
+                random_state=self.random_state)
 
-    if objective_weights is None:
-        objective_weights = get_random_weights(y, random_seed)
+        if objective_weights is None:
+            objective_weights = get_random_weights(y, random_seed)
 
-    optim_tmt = self.predict_optimal_treatments(x,
-    objective_weights=objective_weights,  treatments=treatments,
-                                   calibrator=calibrator)
+        optim_tmt = self.predict_optimal_treatments(x,
+        objective_weights=objective_weights,  treatments=treatments,
+                                       calibrator=calibrator)
 
-    new_y = (objective_weights*y).sum(axis = 1)
-    observation_weights = get_weights(reduce_concat(t))
+        new_y = (objective_weights*y).sum(axis = 1)
+        observation_weights = get_weights(reduce_concat(t))
 
-    erupt_new_y = erupt(new_y.reshape(-1,1), t, optim_tmt, weights = observation_weights)
+        erupt_new_y = erupt(new_y.reshape(-1,1), t, optim_tmt, weights = observation_weights)
 
-    return(erupt_new_y)
+        return(erupt_new_y)
