@@ -99,8 +99,6 @@ class TestMRUplift(object):
                                   alpha = [.5], copy_several_times = [2])
 
         y_no_noise, x_no_noise, tmt_no_noise = get_no_noise_data(num_obs)
-        #tmt_no_noise = np.concatenate([tmt_no_noise.reshape(-1, 1),
-        #        np.random.binomial(1, .5, num_obs).reshape(-1, 1)], axis=1)
 
         uplift_model = MRUplift()
         uplift_model.fit(x_no_noise, y_no_noise, tmt_no_noise.reshape(-1, 1),
@@ -108,3 +106,19 @@ class TestMRUplift(object):
         oos_ice = uplift_model.predict_ice()
 
         assert np.sqrt(np.mean((oos_ice.mean(axis=1) -true_ATE)**2)) < rmse_tolerance
+
+    def test_model_get_random_erupts(self):
+        true_ATE = np.array([[0, 0], [1, .5]])
+        rmse_tolerance = .05
+        num_obs = 10000
+        param_grid = dict(num_nodes=[8], dropout=[.1], activation=['relu'], num_layers=[2], epochs=[30], batch_size=[100],
+                                  alpha = [.5], copy_several_times = [2])
+
+        y_no_noise, x_no_noise, tmt_no_noise = get_no_noise_data(num_obs)
+
+        uplift_model = MRUplift()
+        uplift_model.fit(x_no_noise, y_no_noise, tmt_no_noise.reshape(-1, 1),
+                         n_jobs=1, param_grid = param_grid, optimized_loss = True)
+        oos_ice = uplift_model.get_random_erupts()
+
+        assert oos_ice['mean'] > 0
