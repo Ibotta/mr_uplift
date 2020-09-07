@@ -119,6 +119,6 @@ class TestMRUplift(object):
         uplift_model = MRUplift()
         uplift_model.fit(x_no_noise, y_no_noise, tmt_no_noise.reshape(-1, 1),
                          n_jobs=1, param_grid = param_grid, optimized_loss = True)
-        oos_ice = uplift_model.get_random_erupts()
+        oos_re = uplift_model.get_random_erupts()
 
-        assert oos_ice['mean'] > 0
+        assert oos_re['mean'].iloc[0] > 0
