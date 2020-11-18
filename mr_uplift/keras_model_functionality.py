@@ -346,6 +346,7 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
 
     results = []
     for params in grid:
+
         copy_several_times = params['copy_several_times']
         temp_results = []
 
@@ -378,6 +379,9 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
             weights = get_weights(tmt_location)
             erupts = erupt(np.array(new_response_test).sum(axis=1).reshape(-1,1), tmt_location, optim_value_location, weights=weights, names=None)
 
+            np.random.shuffle(optim_value_location)
+            random_erupts = erupt(np.array(new_response_test).sum(axis=1).reshape(-1,1), tmt_location, optim_value_location, weights=weights, names=None)
+
             temp_results.append(erupts['mean'])
 
         results.append(np.mean(temp_results).mean())
@@ -394,7 +398,7 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
 
 
     x, utility_weights, new_response, big_y  = prepare_data_optimized_loss(x,y,t,unique_treatments,
-    weighted_treatments = True, copy_several_times = copy_several_times)
+    weighted_treatments = True, copy_several_times = optim_grid['copy_several_times'])
 
     mod.fit([x, utility_weights] , [new_response, big_y], epochs = optim_grid['epochs'],
         batch_size = optim_grid['batch_size'], verbose = False)
