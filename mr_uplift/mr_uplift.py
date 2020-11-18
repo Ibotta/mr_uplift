@@ -387,7 +387,7 @@ class MRUplift(object):
 
         return best_treatments
 
-    def calibrate(self, response_transformer, treatments=None):
+    def calibrate(self, response_transformer = False, treatments=None):
         """(Experimental)
         This fits a calibrator on training dataset. This of the form
         y = b0y_pred_0*t_0+b1*y_pred_1*t_1 + ... + b_num_tmts*y_pred_numtmts*t_num_tmts for all treatments.
@@ -433,7 +433,7 @@ class MRUplift(object):
           calibrator (boolean): If true will use the trained calibrator to transform
             responses. Otherwise will use the response inverse transformer
           num_sample (int): Number of observations to sample for calculations. Used to reduce
-            time of function. 
+            time of function.
         Returns:
           df of variable importance metrics
         """
@@ -477,7 +477,7 @@ class MRUplift(object):
 
     def get_random_erupts(self, x = None, y = None, t = None, objective_weights = None,
         treatments = None, calibrator = None, random_seed = 22,
-        response_transformer = response_transformer):
+        response_transformer = False):
         """OOS metric calculation for full range of a ranom set of objective weights.
         Idea is to calculate full range of objective functions. Here each observation
         is assigned a random objective function and the ERUPT is calculated on this.
