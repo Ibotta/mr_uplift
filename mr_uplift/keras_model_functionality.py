@@ -346,23 +346,17 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
 
     results = []
     for params in grid:
-        print(params)
+
         copy_several_times = params['copy_several_times']
         temp_results = []
 
         for train_index, test_index in kf.split(y):
 
-            x_train, utility_weights_train, new_response_train, big_y_train  = prepare_data_optimized_loss(x[train_index].copy(),y[train_index].copy(),
-            t[train_index].copy(), unique_treatments, weighted_treatments = True, copy_several_times = copy_several_times,random_seed = np.random.randint(10000))
-            x_test, utility_weights_test, new_response_test, big_y_test   = prepare_data_optimized_loss(x[test_index].copy(), y[test_index].copy(),
-            t[test_index].copy(), unique_treatments, weighted_treatments = False, copy_several_times = None, random_seed = np.random.randint(10000))
+            x_train, utility_weights_train, new_response_train, big_y_train  = prepare_data_optimized_loss(x[train_index],y[train_index],
+            t[train_index], unique_treatments, weighted_treatments = True, copy_several_times = copy_several_times)
+            x_test, utility_weights_test, new_response_test, big_y_test   = prepare_data_optimized_loss(x[test_index], y[test_index],
+            t[test_index], unique_treatments, weighted_treatments = False, copy_several_times = None)
 
-
-            print('x_train_shape')
-            print(x_train.shape)
-            print(x_test.shape)
-            print(np.array(new_response_test).sum(axis=1).reshape(-1,1).mean())
-            print(np.array(new_response_test).sum(axis=1).reshape(-1,1).std())
             mod = create_mo_optim_model(input_shape = x.shape[1],
               num_responses = y.shape[1],
               unique_treatments = unique_treatments,
@@ -388,30 +382,25 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
             np.random.shuffle(optim_value_location)
             random_erupts = erupt(np.array(new_response_test).sum(axis=1).reshape(-1,1), tmt_location, optim_value_location, weights=weights, names=None)
 
-            print(erupts)
-            n = pd.DataFrame.from_dict({'n':[np.sqrt(len(test_index))]})
-            t_stat = erupts['mean']/(erupts['std']/n['n'])
-            print(t_stat)
-            print(random_erupts)
-            temp_results.append(erupts['mean']-random_erupts['mean'])
+            temp_results.append(erupts['mean'])
 
         results.append(np.mean(temp_results).mean())
 
     optim_grid = [x for x in grid][np.argmax(np.array(results))]
 
-#    mod  = create_mo_optim_model(input_shape = x.shape[1],
-#            num_responses = y.shape[1],
-#            unique_treatments = unique_treatments, num_layers = optim_grid['num_layers'],
-#            num_nodes = optim_grid['num_nodes'],
-#            dropout = optim_grid['dropout'],
-#            alpha = optim_grid['alpha'],
-#            activation = optim_grid['activation'])
+    mod  = create_mo_optim_model(input_shape = x.shape[1],
+            num_responses = y.shape[1],
+            unique_treatments = unique_treatments, num_layers = optim_grid['num_layers'],
+            num_nodes = optim_grid['num_nodes'],
+            dropout = optim_grid['dropout'],
+            alpha = optim_grid['alpha'],
+            activation = optim_grid['activation'])
 
 
-#    x, utility_weights, new_response, big_y  = prepare_data_optimized_loss(x,y,t,unique_treatments,
-#    weighted_treatments = True, copy_several_times = optim_grid['copy_several_times'])
+    x, utility_weights, new_response, big_y  = prepare_data_optimized_loss(x,y,t,unique_treatments,
+    weighted_treatments = True, copy_several_times = optim_grid['copy_several_times'])
 
-#    mod.fit([x, utility_weights] , [new_response, big_y], epochs = optim_grid['epochs'],
-#        batch_size = optim_grid['batch_size'], verbose = False)
+    mod.fit([x, utility_weights] , [new_response, big_y], epochs = optim_grid['epochs'],
+        batch_size = optim_grid['batch_size'], verbose = False)
 
     return mod, optim_grid, results[np.argmax(np.array(results))]
