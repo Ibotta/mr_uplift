@@ -373,7 +373,7 @@ class MRUplift(object):
         if treatments is None:
             treatments = self.unique_t
 
-        ice = self.predict_ice(x, treatments, calibrator, response_transformer)
+        ice = self.predict_ice(x, treatments, calibrator, response_transformer = response_transformer)
 
         if self.num_responses > 1:
 
