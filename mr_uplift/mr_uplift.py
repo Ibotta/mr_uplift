@@ -194,7 +194,7 @@ class MRUplift(object):
 
         return preds
 
-    def predict_ice(self, x=None, treatments=None, calibrator=False, transformer = False,
+    def predict_ice(self, x=None, treatments=None, calibrator=False,
         response_transformer = False):
         """Predicts all counterfactuals with new data. If no new data is
             assigned it will use test set data. Can subset to particular treatments
@@ -373,7 +373,7 @@ class MRUplift(object):
         if treatments is None:
             treatments = self.unique_t
 
-        ice = self.predict_ice(x, treatments, calibrator, response_transformer)
+        ice = self.predict_ice(x, treatments, calibrator, response_transformer = response_transformer)
 
         if self.num_responses > 1:
 
