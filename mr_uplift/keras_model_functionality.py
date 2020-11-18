@@ -379,9 +379,6 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
             weights = get_weights(tmt_location)
             erupts = erupt(np.array(new_response_test).sum(axis=1).reshape(-1,1), tmt_location, optim_value_location, weights=weights, names=None)
 
-            np.random.shuffle(optim_value_location)
-            random_erupts = erupt(np.array(new_response_test).sum(axis=1).reshape(-1,1), tmt_location, optim_value_location, weights=weights, names=None)
-
             temp_results.append(erupts['mean'])
 
         results.append(np.mean(temp_results).mean())
