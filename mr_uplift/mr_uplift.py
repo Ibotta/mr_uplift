@@ -8,11 +8,11 @@ from mr_uplift.erupt import get_erupts_curves_aupc, get_best_tmts, erupt, get_we
 
 from keras.wrappers.scikit_learn import KerasRegressor
 from sklearn.model_selection import GridSearchCV
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, KBinsDiscretizer, FunctionTransformer
 from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from mr_uplift.calibrate_uplift import UpliftCalibration
-
+from sklearn.pipeline import make_pipeline
 def get_t_data(values, num_obs):
     """Repeats treatment to several rows and reshapes it. Used to append treatments
     to explanatory variable dataframe to predict counterfactuals.
@@ -53,7 +53,7 @@ class MRUplift(object):
         self.__dict__.update(kw)
 
     def fit(self, x, y, t, test_size=0.7, random_state=22, param_grid=None,
-            n_jobs=-1, cv=5, optimized_loss = False, PCA_x = False, PCA_y = False):
+            n_jobs=-1, cv=5, optimized_loss = False, PCA_x = False, PCA_y = False, bin = False):
         """Fits a Neural Network Model of the form y ~ f(t,x). Creates seperate
         transformers for y, t, and x and scales each. Assigns train / test split.
 
@@ -123,8 +123,15 @@ class MRUplift(object):
         else:
             self.y_ss = StandardScaler()
 
+
         if PCA_x:
             self.x_ss = PCA(whiten = True)
+
+        elif bin:
+            self.x_ss = make_pipeline(
+                     KBinsDiscretizer(n_bins = 10),
+                     FunctionTransformer(lambda x: x.todense(), accept_sparse=True)
+                )
         else:
             self.x_ss = StandardScaler()
 
@@ -159,7 +166,7 @@ class MRUplift(object):
             self.best_params_net = net.best_params_
             self.model = net.best_estimator_.model
 
-    def predict(self, x, t):
+    def predict(self, x, t, response_transformer = False):
         """Returns predictions of the fitted model. Transforms both x and t then
         concatenates those two variables into an array to predict on. Finally,
         an inverse transformer is applied on predictions to transform to original
@@ -170,6 +177,9 @@ class MRUplift(object):
           by num_explanatory_variables
         t (np array or pd.dataframe): Treatment Variables of shape
           num_observations by num_treatment columns
+        response_transformer (boolean): If true will use the trained scaler to transform
+          responses. I've noticed that using this in production degrades performance
+          becuase model optimizes scaled data.
 
         Returns:
         Predictions fitted model
@@ -179,11 +189,13 @@ class MRUplift(object):
             [self.t_ss.transform(t), self.x_ss.transform(x)], axis=1)
         preds = self.model.predict(x_t_new)
 
-        preds = self.y_ss.inverse_transform(preds)
+        if response_transformer:
+            preds = self.y_ss.inverse_transform(preds)
 
         return preds
 
-    def predict_ice(self, x=None, treatments=None, calibrator=False):
+    def predict_ice(self, x=None, treatments=None, calibrator=False, transformer = False,
+        response_transformer = False):
         """Predicts all counterfactuals with new data. If no new data is
             assigned it will use test set data. Can subset to particular treatments
             using treatment assignment. Can also apply calibrator function (experimental)
@@ -198,6 +210,9 @@ class MRUplift(object):
           original training treatments are used.
         calibrator (boolean): If true will use the trained calibrator to transform
           responses. Otherwise will use the response inverse transformer
+        response_transformer (boolean): If true will use the trained scaler to transform
+          responses. I've noticed that using this in production degrades performance
+          becuase model optimizes scaled data.
         Returns:
           Counterfactuals for all treatments and response variables. an arrary of
           num_treatments by num_observations by num_responses
@@ -214,7 +229,7 @@ class MRUplift(object):
             treatments = self.unique_t
 
         ice = np.array([self.predict(x_test, get_t_data(
-            t, x_test.shape[0])) for t in treatments])
+            t, x_test.shape[0]), response_transformer = response_transformer) for t in treatments])
 
         if calibrator:
             ice = self.calibrator.transform(ice)
@@ -222,7 +237,8 @@ class MRUplift(object):
         return ice
 
     def get_erupt_curves(self, x=None, y=None, t=None, objective_weights=None,
-                         treatments=None, calibrator=False):
+                         treatments=None, calibrator=False,
+                         response_transformer = False):
         """Returns ERUPT Curves and distributions of treatments. If either x or
         y or t is not inputted it will use test data.
 
@@ -247,6 +263,9 @@ class MRUplift(object):
           treatments (np.array): treatments to use in erupt calculations
           calibrator (boolean): If true will use the trained calibrator to transform
             responses. Otherwise will use the response inverse transformer
+          response_transformer (boolean): If true will use the trained scaler to transform
+            responses. I've noticed that using this in production degrades performance
+            becuase model optimizes scaled data.
 
         Returns:
           ERUPT Curves and Treatment Distributions
@@ -280,7 +299,7 @@ class MRUplift(object):
         t = t[to_keep_locs]
         x = x[to_keep_locs]
 
-        ice_preds = self.predict_ice(x, treatments, calibrator)
+        ice_preds = self.predict_ice(x, treatments, calibrator, response_transformer)
 
         return get_erupts_curves_aupc(
             y,
@@ -331,7 +350,7 @@ class MRUplift(object):
 
 
     def predict_optimal_treatments(self, x, objective_weights=None, treatments=None,
-                                   calibrator=False):
+                                   calibrator=False, response_transformer = False):
         """Calculates optimal treatments of model output given explanatory
             variables and weights
 
@@ -343,6 +362,9 @@ class MRUplift(object):
           original training treatments are used.
           calibrator (boolean): If true will use the trained calibrator to transform
           responses. Otherwise will use the response inverse transformer
+          response_transformer (boolean): If true will use the trained scaler to transform
+            responses. I've noticed that using this in production degrades performance
+            becuase model optimizes scaled data.
 
         Returns:
           Optimal Treatment Values
@@ -351,7 +373,7 @@ class MRUplift(object):
         if treatments is None:
             treatments = self.unique_t
 
-        ice = self.predict_ice(x, treatments, calibrator)
+        ice = self.predict_ice(x, treatments, calibrator, response_transformer)
 
         if self.num_responses > 1:
 
@@ -365,10 +387,13 @@ class MRUplift(object):
 
         return best_treatments
 
-    def calibrate(self, treatments=None):
+    def calibrate(self, response_transformer, treatments=None):
         """(Experimental)
         This fits a calibrator on training dataset. This of the form
         y = b0y_pred_0*t_0+b1*y_pred_1*t_1 + ... + b_num_tmts*y_pred_numtmts*t_num_tmts for all treatments.
+        response_transformer (boolean): If true will use the trained scaler to transform
+          responses. I've noticed that using this in production degrades performance
+          becuase model optimizes scaled data.
 
         Args:
             None
@@ -383,7 +408,7 @@ class MRUplift(object):
             t_train = reduce_concat(t_train)
         t_train = t_train.reshape(-1, 1)
 
-        ice = self.predict_ice(x_train, treatments)
+        ice = self.predict_ice(x_train, treatments, response_transformer)
 
         calib = UpliftCalibration()
         calib.fit(ice, y_train, t_train)
@@ -392,7 +417,8 @@ class MRUplift(object):
         self.calibrator = calib
 
 
-    def permutation_varimp(self, objective_weights=None, x=None, treatments=None, calibrator=False):
+    def permutation_varimp(self, objective_weights=None, x=None, treatments=None, calibrator=False,
+        num_sample = 10000):
         """Variable importance metrics. This is based on permutation tests. For variable this permutes the column
         and then predicts and finds the optimal value given a set of weights. For each user it compares the optimal treatment of
         permuted column data with optimal treatment of non-permuted data and averages the result. The output is an index of how often
@@ -406,6 +432,8 @@ class MRUplift(object):
             original training treatments are used.
           calibrator (boolean): If true will use the trained calibrator to transform
             responses. Otherwise will use the response inverse transformer
+          num_sample (int): Number of observations to sample for calculations. Used to reduce
+            time of function. 
         Returns:
           df of variable importance metrics
         """
@@ -423,6 +451,8 @@ class MRUplift(object):
 
             shuffled_index = np.arange(x.shape[0])
             np.random.shuffle(shuffled_index)
+
+            shuffled_index = shuffled_index[:num_sample]
 
             x_copy = x.copy()
             x_copy[:,p] = x_copy[:,p][shuffled_index]
@@ -446,7 +476,8 @@ class MRUplift(object):
         return varimps_pd
 
     def get_random_erupts(self, x = None, y = None, t = None, objective_weights = None,
-        treatments = None, calibrator = None, random_seed = 22):
+        treatments = None, calibrator = None, random_seed = 22,
+        response_transformer = response_transformer):
         """OOS metric calculation for full range of a ranom set of objective weights.
         Idea is to calculate full range of objective functions. Here each observation
         is assigned a random objective function and the ERUPT is calculated on this.
@@ -461,6 +492,10 @@ class MRUplift(object):
           calibrator (boolean): If true will use the trained calibrator to transform
             responses. Otherwise will use the response inverse transformer
           random_seed (int): seed for random weights matrix if none are assigned
+          response_transformer (boolean): If true will use the trained scaler to transform
+            responses. I've noticed that using this in production degrades performance
+            becuase model optimizes scaled data.
+
         Returns:
           mean and standardization of ERUPT
         """
@@ -475,7 +510,7 @@ class MRUplift(object):
 
         optim_tmt = self.predict_optimal_treatments(x,
         objective_weights=objective_weights,  treatments=treatments,
-                                       calibrator=calibrator)
+        calibrator=calibrator, response_transformer = response_transformer)
 
         new_y = (objective_weights*y).sum(axis = 1)
         observation_weights = get_weights(reduce_concat(t))
