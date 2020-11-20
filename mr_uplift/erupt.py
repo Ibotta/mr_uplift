@@ -140,8 +140,8 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
         erupts_random['assignment'] = 'random'
         erupts['assignment'] = 'model'
 
-        erupts['treatment'] = -1
-
+        erupts['treatment'] = '-1'
+        erupts_random['treatment'] = '-1'
 
         erupts = pd.concat([erupts, erupts_random], axis=0)
 
@@ -164,7 +164,7 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
         erupts = erupt(y, tmt, t_rep, weights=observation_weights,
                        names=names)
 
-        erupts['weights'] = -1
+        erupts['weights'] = '-1'
         erupts['treatment'] = t
         erupts['assignment'] = 'ate'
 
