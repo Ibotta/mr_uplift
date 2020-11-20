@@ -122,3 +122,16 @@ class TestMRUplift(object):
         oos_re = uplift_model.get_random_erupts()
 
         assert oos_re['mean'].iloc[0] > 0
+
+    def test_varimp(self):
+        num_obs = 10000
+        param_grid = dict(num_nodes=[8], dropout=[.1], activation=['relu'], num_layers=[2], epochs=[30], batch_size=[100])
+
+        y, x, t = get_simple_uplift_data(num_obs)
+
+        uplift_model = MRUplift()
+        uplift_model.fit(x, y, t.reshape(-1, 1),
+                         n_jobs=1, param_grid = param_grid)
+        varimp = uplift_model.permutation_varimp(objective_weights = np.array([.7,-.3,0]).reshape(1,-1))
+
+        assert varimp['permutation_varimp_metric'].iloc[0]>varimp['permutation_varimp_metric'].iloc[1]
