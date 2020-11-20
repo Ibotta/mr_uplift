@@ -442,6 +442,8 @@ class MRUplift(object):
                 self.x, self.y, self.t, test_size=self.test_size,
                 random_state=self.random_state)
 
+        #subset number of observations
+        x = x[:num_sample]
 
         original_decisions = self.predict_optimal_treatments(x,
         objective_weights=objective_weights, treatments=treatments,
@@ -452,7 +454,7 @@ class MRUplift(object):
             shuffled_index = np.arange(x.shape[0])
             np.random.shuffle(shuffled_index)
 
-            shuffled_index = shuffled_index[:num_sample]
+            shuffled_index = shuffled_index
 
             x_copy = x.copy()
             x_copy[:,p] = x_copy[:,p][shuffled_index]

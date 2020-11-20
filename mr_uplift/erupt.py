@@ -140,6 +140,9 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
         erupts_random['assignment'] = 'random'
         erupts['assignment'] = 'model'
 
+        erupts['treatment'] = '-1'
+        erupts_random['treatment'] = '-1'
+
         erupts = pd.concat([erupts, erupts_random], axis=0)
 
         dists = pd.DataFrame(optim_tmt).iloc[:, 0].value_counts()
@@ -152,6 +155,20 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
 
         all_erupts.append(erupts)
         all_distributions.append(dist_treatments)
+
+    for t in unique_tmts:
+
+        t_rep = np.repeat(t, y.shape[0])
+        str_obj_weight = str(t)
+
+        erupts = erupt(y, tmt, t_rep, weights=observation_weights,
+                       names=names)
+
+        erupts['weights'] = '-1'
+        erupts['treatment'] = t
+        erupts['assignment'] = 'ate'
+
+        all_erupts.append(erupts)
 
     all_erupts = pd.concat(all_erupts)
     all_distributions = pd.concat(all_distributions)
