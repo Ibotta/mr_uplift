@@ -158,14 +158,14 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
 
     for t in unique_tmts:
 
-        t_rep = np.repeat(t, y.shape[0])
+        t_rep = np.repeat(t, y.shape[0]).reshape(-1,1)
         str_obj_weight = str(t)
 
-        erupts = erupt(y, tmt, t_rep, weights=observation_weights,
+        erupts = erupt(y, tmt.reshape(-1,1), t_rep, weights=observation_weights,
                        names=names)
 
         erupts['weights'] = '-1'
-        erupts['treatment'] = t
+        erupts['treatment'] = str_obj_weight
         erupts['assignment'] = 'ate'
 
         all_erupts.append(erupts)
