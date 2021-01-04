@@ -53,7 +53,8 @@ class MRUplift(object):
         self.__dict__.update(kw)
 
     def fit(self, x, y, t, test_size=0.7, random_state=22, param_grid=None,
-            n_jobs=-1, cv=5, optimized_loss = False, PCA_x = False, PCA_y = False, bin = False):
+            n_jobs=-1, cv=5, optimized_loss = False, PCA_x = False, PCA_y = False, bin = False,
+            use_propensity = False):
         """Fits a Neural Network Model of the form y ~ f(t,x). Creates seperate
         transformers for y, t, and x and scales each. Assigns train / test split.
 
@@ -73,6 +74,7 @@ class MRUplift(object):
         optimized_loss (boolean): If True will use the optimized loss funcionality.
         PCA_x (boolean): If True it will use PCA to preprocess explanatory variables
         PCA_y (boolean): If True it will use PCA to preprocess response variables
+        use_propensity (boolean): If True will use propensity scores from a RF. Best for observational data.
 
         Returns:
         Builds a neural network and assigns it to self.model
@@ -150,12 +152,13 @@ class MRUplift(object):
         if optimized_loss:
             net = gridsearch_mo_optim(x_train_scaled, y_train_scaled, t_train_scaled,
                                                  param_grid=param_grid,
-                                                 n_splits=cv)
+                                                 n_splits=cv,
+                                                 use_propensity = use_propensity)
             self.best_score_net = net[2]
             self.best_params_net = net[1]
             #only need embedded layer and not whole net
             self.model = net[0].get_layer('net_model')
-
+            self.propensity_model = net[3]
         else:
             net = train_model_multi_output_w_tmt(x_t_train, y_train_scaled,
                                                  param_grid=param_grid,
