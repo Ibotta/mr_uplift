@@ -3,7 +3,7 @@ import pandas as pd
 import dill
 import copy
 from tensorflow.keras.models import load_model
-from mr_uplift.keras_model_functionality import train_model_multi_output_w_tmt, gridsearch_mo_optim, get_random_weights
+from mr_uplift.keras_model_functionality import train_model_multi_output_w_tmt, gridsearch_mo_optim, get_random_weights, treatments_to_text
 from mr_uplift.erupt import get_erupts_curves_aupc, get_best_tmts, erupt, get_weights
 
 from keras.wrappers.scikit_learn import KerasRegressor
@@ -80,14 +80,14 @@ class MRUplift(object):
         Builds a neural network and assigns it to self.model
         """
 
-        self.unique_t = np.unique(np.array(t), axis=0)
+        self.unique_t = np.unique(np.array(t).astype('float'), axis=0)
 
         self.num_t = len(np.unique(t))
         self.num_responses = y.shape[1]
 
-        self.x = np.array(x)
-        self.y = np.array(y)
-        self.t = np.array(t)
+        self.x = np.array(x).astype('float')
+        self.y = np.array(y).astype('float')
+        self.t = np.array(t).astype('float')
 
         self.test_size = test_size
         self.random_state = random_state
@@ -153,7 +153,7 @@ class MRUplift(object):
             net = gridsearch_mo_optim(x_train_scaled, y_train_scaled, t_train_scaled,
                                                  param_grid=param_grid,
                                                  n_splits=cv,
-                                                 use_propensity = use_propensity)
+                                                 use_propensity = use_propensity, transformer = self.t_ss)
             self.best_score_net = net[2]
             self.best_params_net = net[1]
             #only need embedded layer and not whole net
@@ -168,6 +168,8 @@ class MRUplift(object):
             self.best_score_net = net.best_score_
             self.best_params_net = net.best_params_
             self.model = net.best_estimator_.model
+            self.propensity_model = None
+
 
     def predict(self, x, t, response_transformer = False):
         """Returns predictions of the fitted model. Transforms both x and t then
@@ -241,7 +243,8 @@ class MRUplift(object):
 
     def get_erupt_curves(self, x=None, y=None, t=None, objective_weights=None,
                          treatments=None, calibrator=False,
-                         response_transformer = False):
+                         response_transformer = False,
+                         masked_cuttof = 100):
         """Returns ERUPT Curves and distributions of treatments. If either x or
         y or t is not inputted it will use test data.
 
@@ -291,26 +294,40 @@ class MRUplift(object):
         if treatments is None:
             treatments = self.unique_t
 
-        if t.shape[1] > 1:
-            t = reduce_concat(t)
-            unique_t = reduce_concat(treatments)
-        else:
-            unique_t = treatments
+        str_t, str_unique_treatments = treatments_to_text(t, treatments)
 
-        to_keep_locs = np.where([z in unique_t for z in t])[0]
+        to_keep_locs = np.where([z in str_unique_treatments for z in str_t])[0]
+
         y = y[to_keep_locs]
         t = t[to_keep_locs]
         x = x[to_keep_locs]
 
         ice_preds = self.predict_ice(x, treatments, calibrator, response_transformer)
 
+
+        if self.propensity_model is not None:
+
+            propensity_scores = pd.DataFrame(1/self.propensity_model.predict_proba(x))
+            propensity_scores.columns = self.propensity_model.classes_
+
+            mask_tmt_locations = np.array((propensity_scores < masked_cuttof)*1)
+
+            t_series = pd.Series(str_t)
+            observation_weights = propensity_scores.lookup(t_series.index, t_series.values)
+
+        else:
+            mask_tmt_locations = None
+            observation_weights = get_weights(str_t)
+
         return get_erupts_curves_aupc(
             y,
-            t,
+            np.array(str_t),
             ice_preds,
-            unique_t,
+            str_unique_treatments,
             objective_weights,
-            names=self.y_names)
+            names=self.y_names,
+            mask_tmt_locations = mask_tmt_locations,
+            observation_weights = np.array(observation_weights))
 
     def copy(self):
         """Copies MRUplift Class. Not sure if this is the best way but it
@@ -353,7 +370,8 @@ class MRUplift(object):
 
 
     def predict_optimal_treatments(self, x, objective_weights=None, treatments=None,
-                                   calibrator=False, response_transformer = False):
+                                   calibrator=False, response_transformer = False,
+                                   masked_cuttof = 100):
         """Calculates optimal treatments of model output given explanatory
             variables and weights
 
@@ -368,6 +386,8 @@ class MRUplift(object):
           response_transformer (boolean): If true will use the trained scaler to transform
             responses. I've noticed that using this in production degrades performance
             becuase model optimizes scaled data.
+          masked_cuttof (float): maximum weight of propensity score. If too high than it wouldn't have had
+            much support in original model and should probably be exlcuded.
 
         Returns:
           Optimal Treatment Values
@@ -375,6 +395,14 @@ class MRUplift(object):
 
         if treatments is None:
             treatments = self.unique_t
+
+        if self.propensity_model is not None:
+            propensity_scores = pd.DataFrame(1/self.propensity_model.predict_proba(x))
+            propensity_scores.columns = self.propensity_model.classes_
+
+            mask_tmt_locations = np.array((propensity_scores < masked_cuttof)*1)
+        else:
+            mask_tmt_locations = None
 
         ice = self.predict_ice(x, treatments, calibrator, response_transformer = response_transformer)
 
@@ -384,8 +412,13 @@ class MRUplift(object):
                 unique_t = reduce_concat(treatments)
             else:
                 unique_t = treatments
-            best_treatments = get_best_tmts(objective_weights, ice, treatments)
+            best_treatments = get_best_tmts(objective_weights, ice, treatments,
+                mask_tmt_locations = mask_tmt_locations)
         else:
+
+            if self.propensity_model is not None:
+                ice = (np.exp(ice) * mask_tmt_locations) / (np.exp(ice) * mask_tmt_locations).sum(axis=1)
+
             best_treatments = np.argmax(ice, axis=0)
 
         return best_treatments
@@ -513,13 +546,32 @@ class MRUplift(object):
         if objective_weights is None:
             objective_weights = get_random_weights(y, random_seed)
 
+        str_t, str_unique_treatments = treatments_to_text(tmt, unique_tmts)
+
+        if self.propensity_model is not None:
+
+            propensity_scores = pd.DataFrame(1/self.propensity_model.predict_proba(x))
+            propensity_scores.columns = self.propensity_model.classes_
+
+            mask_tmt_locations = np.array((propensity_scores < masked_cuttof)*1)
+
+            str_t_series = pd.Series(str_t)
+            observation_weights = propensity_scores.lookup(str_t_series.index, str_t_series.values)
+
+        else:
+            mask_tmt_locations = None
+            observation_weights = get_weights(str_t)
+
+
+
         optim_tmt = self.predict_optimal_treatments(x,
         objective_weights=objective_weights,  treatments=treatments,
         calibrator=calibrator, response_transformer = response_transformer)
 
-        new_y = (objective_weights*y).sum(axis = 1)
+        new_y = (objective_weights*y).sum(axis = 1).reshape(-1,1)
+
         observation_weights = get_weights(reduce_concat(t))
 
-        erupt_new_y = erupt(new_y.reshape(-1,1), t, optim_tmt, weights = observation_weights)
+        erupt_new_y = erupt(new_y, t, optim_tmt, weights = observation_weights)
 
         return(erupt_new_y)

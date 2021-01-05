@@ -271,6 +271,7 @@ def treatments_to_text(t, unique_treatments):
     if(unique_treatments.shape[1] > 1):
         str_t = reduce_concat(t)
         str_unique_treatments = reduce_concat(unique_treatments)
+
     else:
         str_t = [str(q) for q in np.squeeze(t)]
         str_unique_treatments = ([str(q) for q in np.squeeze(unique_treatments)])
@@ -335,7 +336,7 @@ copy_several_times = None, random_seed = 22):
 
 
 def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None, use_propensity = False,
-    propensity_cutoff_weight = 100):
+    propensity_cutoff_weight = 100, transformer = None):
     """Gridsearches over create_mo_optim_model. Since it has multiple inputs/ outputs
     I 'rolled' my own.
 
@@ -366,10 +367,10 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None, use_propensity = 
 
         copy_several_times = params['copy_several_times']
         temp_results = []
-
         for train_index, test_index in kf.split(y):
-            str_t_train, str_unique_treatments_train = treatments_to_text(t[train_index], unique_treatments)
-            str_t_test, str_unique_treatments_test = treatments_to_text(t[test_index], unique_treatments)
+
+            str_t_train, _ = treatments_to_text(transformer.inverse_transform(t[train_index]), unique_treatments)
+            str_t_test, _ = treatments_to_text(transformer.inverse_transform(t[test_index]), unique_treatments)
 
             if use_propensity:
 
@@ -440,7 +441,7 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None, use_propensity = 
 
     optim_grid = [x for x in grid][np.argmax(np.array(results))]
 
-    str_t_train, str_unique_treatments_train = treatments_to_text(t, unique_treatments)
+    str_t_train, _ = treatments_to_text(transformer.inverse_transform(t), unique_treatments)
 
     if use_propensity:
 
