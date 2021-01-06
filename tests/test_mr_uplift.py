@@ -4,6 +4,7 @@ import pytest
 from mr_uplift.dataset.data_simulation import get_no_noise_data, get_simple_uplift_data
 from mr_uplift.mr_uplift import MRUplift, get_t_data
 from mr_uplift.keras_model_functionality import prepare_data_optimized_loss
+import sys
 
 class TestMRUplift(object):
 
@@ -88,9 +89,13 @@ class TestMRUplift(object):
         num_obs = 1000
 
         y, x, t = get_simple_uplift_data(num_obs)
+        t = t.reshape(len(t),1)
+
         unique_treatments = np.unique(t, axis = 0)
 
-        x, utility_weights, missing_utility, missing_y_mat = prepare_data_optimized_loss(x,y,t,unique_treatments)
+        masks = np.ones(num_obs).reshape(num_obs,1)
+
+        x, utility_weights, missing_utility, missing_y_mat, masks, weights = prepare_data_optimized_loss(x,y,t, masks ,unique_treatments)
 
         assert(utility_weights.shape == (num_obs, y.shape[1]))
         assert(missing_y_mat.shape == (num_obs, unique_treatments.shape[0], y.shape[1]))
@@ -101,13 +106,13 @@ class TestMRUplift(object):
         num_obs = 1000
 
         y, x, t = get_simple_uplift_data(num_obs)
-        unique_treatments = np.unique(t, axis = 0)
 
         t = np.concatenate([t.reshape(-1, 1),
         np.random.binomial(1, .5, num_obs).reshape(-1, 1)], axis=1)
-
         unique_treatments = np.unique(t, axis = 0)
-        x, utility_weights, missing_utility, missing_y_mat = prepare_data_optimized_loss(x,y,t,unique_treatments)
+        masks = np.ones(num_obs*len(unique_treatments)).reshape(num_obs,len(unique_treatments))
+
+        x, utility_weights, missing_utility, missing_y_mat, masks, weights = prepare_data_optimized_loss(x,y,t,masks, unique_treatments)
 
         assert(utility_weights.shape == (num_obs, y.shape[1]))
         assert(missing_y_mat.shape == (num_obs, unique_treatments.shape[0], y.shape[1]))
@@ -128,7 +133,7 @@ class TestMRUplift(object):
                          n_jobs=1, param_grid = param_grid, optimized_loss = True)
         oos_ice = uplift_model.predict_ice(response_transformer = True)
 
-        assert np.sqrt(np.mean((oos_ice.mean(axis=1) -true_ATE)**2)) < rmse_tolerance
+        assert np.sqrt(np.mean((oos_ice.mean(axis=1) - true_ATE)**2)) < rmse_tolerance
 
     def test_model_get_random_erupts(self):
         true_ATE = np.array([[0, 0], [1, .5]])

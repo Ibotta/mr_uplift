@@ -294,13 +294,20 @@ class MRUplift(object):
         if treatments is None:
             treatments = self.unique_t
 
+        x = np.array(x).astype('float')
+        t = np.array(t).astype('float')
+        y = np.array(y).astype('float')
+
+
         str_t, str_unique_treatments = treatments_to_text(t, treatments)
 
         to_keep_locs = np.where([z in str_unique_treatments for z in str_t])[0]
 
+
         y = y[to_keep_locs]
         t = t[to_keep_locs]
         x = x[to_keep_locs]
+
 
         ice_preds = self.predict_ice(x, treatments, calibrator, response_transformer)
 
@@ -393,6 +400,8 @@ class MRUplift(object):
           Optimal Treatment Values
         """
 
+        x = np.array(x).astype('float')
+
         if treatments is None:
             treatments = self.unique_t
 
@@ -478,6 +487,10 @@ class MRUplift(object):
                 self.x, self.y, self.t, test_size=self.test_size,
                 random_state=self.random_state)
 
+        x = np.array(x).astype('float')
+        t = np.array(t).astype('float')
+        y = np.array(y).astype('float')
+
         #subset number of observations
         x = x[:num_sample]
 
@@ -538,15 +551,22 @@ class MRUplift(object):
           mean and standardization of ERUPT
         """
 
+        if treatments is None:
+            treatments = self.unique_t
+
         if x is None:
             x_train, x, y_train, y, t_train, t = train_test_split(
                 self.x, self.y, self.t, test_size=self.test_size,
                 random_state=self.random_state)
 
+        x = np.array(x).astype('float')
+        t = np.array(t).astype('float')
+        y = np.array(y).astype('float')
+
         if objective_weights is None:
             objective_weights = get_random_weights(y, random_seed)
 
-        str_t, str_unique_treatments = treatments_to_text(tmt, unique_tmts)
+        str_t, str_unique_treatments = treatments_to_text(t, treatments)
 
         if self.propensity_model is not None:
 
@@ -569,8 +589,6 @@ class MRUplift(object):
         calibrator=calibrator, response_transformer = response_transformer)
 
         new_y = (objective_weights*y).sum(axis = 1).reshape(-1,1)
-
-        observation_weights = get_weights(reduce_concat(t))
 
         erupt_new_y = erupt(new_y, t, optim_tmt, weights = observation_weights)
 

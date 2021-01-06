@@ -234,7 +234,7 @@ def create_mo_optim_model(input_shape, num_responses, unique_treatments, num_lay
     return model
 
 
-def copy_data(x,y,t, n):
+def copy_data(x,y,t, masks, weights, n):
     """Copys input data n times. Found to be helpul in building create_mo_optim_model
     Args:
         x (arrary): input data
@@ -247,7 +247,10 @@ def copy_data(x,y,t, n):
     x = np.concatenate([x.copy() for q in range(n)])
     y = np.concatenate([y.copy() for q in range(n)])
     t = np.concatenate([t.copy() for q in range(n)])
-    return x, y, t
+    masks = np.concatenate([masks.copy() for q in range(n)])
+    weights = np.concatenate([weights.copy() for q in range(n)])
+
+    return x, y, t, masks, weights
 
 
 def get_random_weights(y, random_seed = 22):
@@ -279,7 +282,7 @@ def treatments_to_text(t, unique_treatments):
     return str_t, str_unique_treatments
 
 
-def prepare_data_optimized_loss(x, y ,t, unique_treatments, weighted_treatments = False, weights = None,
+def prepare_data_optimized_loss(x, y , t, mask, unique_treatments, weights = None,
 copy_several_times = None, random_seed = 22):
     """Prepares dataset to be used in `create_mo_optim_model` model build.
     Args:
@@ -287,7 +290,6 @@ copy_several_times = None, random_seed = 22):
         y (np array): response variables
         t (np array): treatment variable
         unique_tmts (np array): unique treatment variables
-        weighted_treatments (Boolean): If there are non-uniform treatments this will
         weight observations inverse proportional to frequency of treatment
         copy_several_times (int): number of times to repeat dataset and create random weights
         random_seed (int): seed for rng
@@ -300,8 +302,11 @@ copy_several_times = None, random_seed = 22):
         has non -999 values for
     """
 
+    if weights is None:
+        weights = np.ones(y.shape[0])
+
     if copy_several_times is not None:
-        x,y,t = copy_data(x,y,t, copy_several_times)
+        x,y,t, mask, weights = copy_data(x,y,t,mask, weights, copy_several_times)
 
     str_t, str_unique_treatments = treatments_to_text(t, unique_treatments)
 
@@ -319,10 +324,6 @@ copy_several_times = None, random_seed = 22):
     utility_weights = get_random_weights(y, random_seed = random_seed)
     utility_y = (utility_weights*np.array(y)).sum(axis=1)
     #get weights of treatments if treatments not uniform
-    if weights is not None:
-        weights = weights
-    else:
-        weights = np.ones(len(str_t))
 
     utility_y = utility_y.reshape(-1,1)*weights.reshape(-1,1)
 
@@ -332,7 +333,7 @@ copy_several_times = None, random_seed = 22):
     missing_utility = np.array(missing_utility[[k for k,v in treatments_order.items()]])
     missing_utility = utility_y.reshape(-1,1)*missing_utility
 
-    return x, utility_weights, missing_utility, missing_y_mat
+    return x, utility_weights, missing_utility, missing_y_mat, mask, weights
 
 
 def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None, use_propensity = False,
@@ -374,7 +375,7 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None, use_propensity = 
 
             if use_propensity:
 
-                propensity_model = RandomForestClassifier(max_depth = 5, n_jobs = -1, oob_score = True)
+                propensity_model = RandomForestClassifier(max_depth = 8, n_jobs = -1, oob_score = True)
                 propensity_model.fit(x[train_index], str_t_train)
 
                 propensity_scores_test = pd.DataFrame(1/propensity_model.predict_proba(x[test_index]))
@@ -404,11 +405,10 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None, use_propensity = 
                 mask_train = np.ones(len(train_index)*len(unique_treatments)).reshape(len(train_index),len(unique_treatments))
                 mask_test = np.ones(len(test_index)*len(unique_treatments)).reshape(len(test_index),len(unique_treatments))
 
-
-            x_train, utility_weights_train, new_response_train, big_y_train  = prepare_data_optimized_loss(x[train_index],y[train_index],
-            t[train_index], unique_treatments, weights = weights_train, copy_several_times = copy_several_times)
-            x_test, utility_weights_test, new_response_test, big_y_test   = prepare_data_optimized_loss(x[test_index], y[test_index],
-            t[test_index], unique_treatments, weights = None, copy_several_times = None)
+            x_train, utility_weights_train, new_response_train, big_y_train, mask_train, weights_train  = prepare_data_optimized_loss(x[train_index],y[train_index],
+            t[train_index], mask = mask_train, unique_treatments = unique_treatments,  weights = weights_train, copy_several_times = copy_several_times)
+            x_test, utility_weights_test, new_response_test, big_y_test, mask_test, weights_test   = prepare_data_optimized_loss(x[test_index], y[test_index],
+            t[test_index], mask = mask_test, unique_treatments = unique_treatments, weights = None, copy_several_times = None)
 
 
 
@@ -445,7 +445,7 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None, use_propensity = 
 
     if use_propensity:
 
-        propensity_model = RandomForestClassifier(max_depth = 5, n_jobs = -1, oob_score = True)
+        propensity_model = RandomForestClassifier(max_depth = 8, n_jobs = -1, oob_score = True)
         propensity_model.fit(x, str_t_train)
 
         propensity_scores_train = pd.DataFrame(1/propensity_model.oob_decision_function_)
@@ -473,8 +473,7 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None, use_propensity = 
             alpha = optim_grid['alpha'],
             activation = optim_grid['activation'])
 
-
-    x, utility_weights, new_response, big_y  = prepare_data_optimized_loss(x,y,t,unique_treatments,
+    x, utility_weights, new_response, big_y, mask_train, weights_train  = prepare_data_optimized_loss(x,y,t,mask_train, unique_treatments,
     weights = weights_train, copy_several_times = optim_grid['copy_several_times'])
 
     mod.fit([x, utility_weights, mask_train] , [new_response, big_y], epochs = optim_grid['epochs'],
