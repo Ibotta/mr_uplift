@@ -528,7 +528,7 @@ class MRUplift(object):
 
     def get_random_erupts(self, x = None, y = None, t = None, objective_weights = None,
         treatments = None, calibrator = None, random_seed = 22,
-        response_transformer = False):
+        response_transformer = False, masked_cuttof = 100):
         """OOS metric calculation for full range of a ranom set of objective weights.
         Idea is to calculate full range of objective functions. Here each observation
         is assigned a random objective function and the ERUPT is calculated on this.
