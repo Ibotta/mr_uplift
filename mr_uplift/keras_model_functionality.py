@@ -16,6 +16,7 @@ from tensorflow.keras.layers import Softmax
 from sklearn.model_selection import KFold, ParameterGrid
 
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import GridSearchCV
 
 from mr_uplift.erupt import get_weights, erupt
 
@@ -363,11 +364,33 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None, use_propensity = 
     kf = KFold(n_splits=n_splits, shuffle=True, random_state=22)
     kf.get_n_splits(y)
 
+    str_t, _ = treatments_to_text(transformer.inverse_transform(t), unique_treatments)
+
+    if use_propensity:
+
+        param_grid = {
+            'n_estimators': [500],
+            'max_features': ['auto'],
+            'max_depth': [1,2,4,8],
+            'oob_score' : [True],
+            'n_jobs' : [-1]
+        }
+
+        propensity_model = GridSearchCV(estimator=RandomForestClassifier(max_depth = 8, n_jobs = -1, oob_score = True, n_estimators = 500),
+            param_grid=param_grid, cv= 5, scoring='neg_log_loss')
+        propensity_model.fit(x, str_t)
+
+        propensity_params = propensity_model.best_params_
+        propensity_model = propensity_model.best_estimator_
+
+
     results = []
     for params in grid:
 
         copy_several_times = params['copy_several_times']
         temp_results = []
+
+
         for train_index, test_index in kf.split(y):
 
             str_t_train, _ = treatments_to_text(transformer.inverse_transform(t[train_index]), unique_treatments)
@@ -375,18 +398,21 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None, use_propensity = 
 
             if use_propensity:
 
-                propensity_model = RandomForestClassifier(max_depth = 8, n_jobs = -1, oob_score = True)
-                propensity_model.fit(x[train_index], str_t_train)
+                propensity_model_train = RandomForestClassifier(**propensity_params)
+                propensity_model_train.fit(x[train_index], str_t_train)
+                #propensity_model = RandomForestClassifier(max_depth = 8, n_jobs = -1, oob_score = True, n_estimators = 500)
+                #propensity_model.fit(x[train_index], str_t_train)
 
-                propensity_scores_test = pd.DataFrame(1/propensity_model.predict_proba(x[test_index]))
-                propensity_scores_test.columns = propensity_model.classes_
+
+                propensity_scores_test = pd.DataFrame(1/propensity_model_train.predict_proba(x[test_index]))
+                propensity_scores_test.columns = propensity_model_train.classes_
 
                 str_t_test_series = pd.Series(str_t_test)
                 weights_test = propensity_scores_test.lookup(str_t_test_series.index, str_t_test_series.values)
 
 
-                propensity_scores_train = pd.DataFrame(1/propensity_model.oob_decision_function_)
-                propensity_scores_train.columns = propensity_model.classes_
+                propensity_scores_train = pd.DataFrame(1/propensity_model_train.oob_decision_function_)
+                propensity_scores_train.columns = propensity_model_train.classes_
 
                 str_t_train_series = pd.Series(str_t_train)
                 weights_train = propensity_scores_train.lookup(str_t_train_series.index, str_t_train_series.values)
@@ -441,24 +467,22 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None, use_propensity = 
 
     optim_grid = [x for x in grid][np.argmax(np.array(results))]
 
-    str_t_train, _ = treatments_to_text(transformer.inverse_transform(t), unique_treatments)
 
     if use_propensity:
 
-        propensity_model = RandomForestClassifier(max_depth = 8, n_jobs = -1, oob_score = True)
-        propensity_model.fit(x, str_t_train)
-
+    #    propensity_model = RandomForestClassifier(max_depth = 8, n_jobs = -1, oob_score = True, n_estimators = 500)
+#        propensity_model.fit(x, str_t_train)
         propensity_scores_train = pd.DataFrame(1/propensity_model.oob_decision_function_)
         propensity_scores_train.columns = propensity_model.classes_
 
-        str_t_train_series = pd.Series(str_t_train)
-        weights_train = propensity_scores_train.lookup(str_t_train_series.index, str_t_train_series.values)
+        str_t_series = pd.Series(str_t)
+        weights_train = propensity_scores_train.lookup(str_t_series.index, str_t_series.values)
 
         mask_train = (np.array(propensity_scores_train)<propensity_cutoff_weight)*1
 
     else:
 
-        weights_train = np.array(get_weights(str_t_train))
+        weights_train = np.array(get_weights(str_t))
         weights_train = weights_train * len(weights_train)/weights_train.sum()
         mask_train = np.ones(x.shape[0]*len(unique_treatments)).reshape(x.shape[0],len(unique_treatments))
 
