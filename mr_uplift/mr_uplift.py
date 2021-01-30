@@ -426,8 +426,13 @@ class MRUplift(object):
         else:
 
             if self.propensity_model is not None:
-                ice = (np.exp(ice) * mask_tmt_locations) / (np.exp(ice) * mask_tmt_locations).sum(axis=1)
+                ice = ice[:,:,0].T
 
+                print(ice.shape)
+                print(mask_tmt_locations.shape)
+                ice = (np.exp(ice) * mask_tmt_locations) / (np.exp(ice) * mask_tmt_locations).sum(axis=1).reshape(-1,1)
+                ice = ice.T
+                
             best_treatments = np.argmax(ice, axis=0)
 
         return best_treatments

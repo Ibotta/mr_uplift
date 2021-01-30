@@ -198,7 +198,7 @@ def create_mo_optim_model(input_shape, num_responses, unique_treatments, num_lay
 
     inputs_x = Input(shape=(input_shape,))
     util_weights = Input(shape=(num_responses,))
-    masks = Input(shape=(unique_treatments.shape[1],))
+    masks = Input(shape=(unique_treatments.shape[0],))
 
     batch_size = K.shape(inputs_x)[0]
 
@@ -357,14 +357,16 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None, use_propensity = 
     """
 
     unique_treatments = np.unique(t, axis = 0)
-    unique_treatments = unique_treatments.reshape(unique_treatments.shape[0], -1)
+
+    if len(unique_treatments.shape) == 1:
+        unique_treatments = unique_treatments.reshape(unique_treatments.shape[0], -1)
 
     grid = ParameterGrid(param_grid)
 
     kf = KFold(n_splits=n_splits, shuffle=True, random_state=22)
     kf.get_n_splits(y)
 
-    str_t, _ = treatments_to_text(transformer.inverse_transform(t), unique_treatments)
+    str_t, str_unique_treatments = treatments_to_text(transformer.inverse_transform(t), unique_treatments)
 
     if use_propensity:
 
@@ -375,9 +377,16 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None, use_propensity = 
             'oob_score' : [True],
             'n_jobs' : [-1]
         }
-
+        param_grid = {
+            'n_estimators': [500],
+            'max_features': ['auto'],
+            'max_depth': [4],
+            'oob_score' : [True],
+            'n_jobs' : [-1]
+        }
         propensity_model = GridSearchCV(estimator=RandomForestClassifier(max_depth = 8, n_jobs = -1, oob_score = True, n_estimators = 500),
-            param_grid=param_grid, cv= 5, scoring='neg_log_loss')
+            param_grid=param_grid, cv= 2, scoring='neg_log_loss')
+        #propensity_model = RandomForestClassifier(max_depth = 4, n_jobs = -1, oob_score = True, n_estimators = 500)
         propensity_model.fit(x, str_t)
 
         propensity_params = propensity_model.best_params_
