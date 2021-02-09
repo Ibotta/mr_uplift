@@ -16,6 +16,7 @@ from tensorflow.keras.layers import Softmax
 from sklearn.model_selection import KFold, ParameterGrid
 from mr_uplift.erupt import get_weights, erupt
 
+
 def reduce_concat(x):
     """concatenates object into one string
     Args:

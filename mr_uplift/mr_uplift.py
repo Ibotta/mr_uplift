@@ -4,7 +4,7 @@ import dill
 import copy
 from tensorflow.keras.models import load_model
 from mr_uplift.keras_model_functionality import train_model_multi_output_w_tmt, gridsearch_mo_optim, get_random_weights, treatments_to_text
-from mr_uplift.erupt import get_erupts_curves_aupc, get_best_tmts, erupt, get_weights
+from mr_uplift.erupt import get_erupts_curves_aupc, get_best_tmts, erupt, get_weights, softmax
 
 from keras.wrappers.scikit_learn import KerasRegressor
 from sklearn.model_selection import GridSearchCV
@@ -458,14 +458,14 @@ class MRUplift(object):
             else:
                 unique_t = treatments
 
-            best_treatments = get_best_tmts(objective_weights, ice, unique_t,
+            best_treatments = get_best_tmts(objective_weights, ice, treatments,
                 mask_tmt_locations = mask_tmt_locations)
         else:
 
             if self.propensity_model is not None:
                 ice = ice[:,:,0].T
 
-                ice = (np.exp(ice) * mask_tmt_locations) / (np.exp(ice) * mask_tmt_locations).sum(axis=1).reshape(-1,1)
+                ice = softmax(ice)*mask_tmt_locations
                 ice = ice.T
 
             best_treatments = treatments[np.argmax(ice, axis=0)]
@@ -621,7 +621,6 @@ class MRUplift(object):
         else:
             mask_tmt_locations = None
             observation_weights = get_weights(str_t)
-
 
 
         optim_tmt = self.predict_optimal_treatments(x,

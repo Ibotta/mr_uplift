@@ -2,6 +2,10 @@ import numpy as np
 import pandas as pd
 import random
 
+def softmax(x):
+    """Compute softmax values for each sets of scores in x."""
+    e_x = np.exp(x - np.max(x, axis = 1).reshape(-1,1))
+    return e_x / e_x.sum(axis = 1).reshape(-1,1)
 
 def weighted_avg_and_std(values, weights):
     """computes weighted averages and stdevs
@@ -73,7 +77,7 @@ def get_best_tmts(objective_weights, ice, unique_tmts, mask_tmt_locations = None
     sum_weighted_ice = np.array(weighted_ice).sum(axis=2).T
 
     if mask_tmt_locations is not None:
-        sum_weighted_ice = (np.exp(sum_weighted_ice)*mask_tmt_locations) / (np.exp(sum_weighted_ice)*mask_tmt_locations).sum(axis=1).reshape(-1,1)
+        sum_weighted_ice = softmax(sum_weighted_ice)*mask_tmt_locations
 
     max_values = sum_weighted_ice.argmax(axis=1)
 
