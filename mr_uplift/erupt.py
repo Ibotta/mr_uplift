@@ -103,7 +103,7 @@ def get_weights(tmts):
 
 
 def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
-                        mask_tmt_locations, observation_weights,
+                        mask_tmt_locations=None, observation_weights=None,
                            names=None):
     """Calculates optimal treatments and returns erupt
     Args:
@@ -125,6 +125,11 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
     all_erupts = []
     all_distributions = []
 
+    if observation_weights is None:
+        observation_weights = np.ones(y.shape[0])
+
+    if mask_tmt_locations is None:
+        mask_tmt_locations = np.ones(y.shape[0]*len(unique_tmts)).reshape(y.shape[0],len(unique_tmts))
 
     for obj_weight in objective_weights:
 

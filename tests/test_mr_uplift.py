@@ -123,14 +123,13 @@ class TestMRUplift(object):
         true_ATE = np.array([[0, 0], [1, .5]])
         rmse_tolerance = .05
         num_obs = 10000
-        param_grid = dict(num_nodes=[8], dropout=[.1], activation=['relu'], num_layers=[2], epochs=[30], batch_size=[100],
-                                  alpha = [.5], copy_several_times = [2])
+        param_grid = dict(num_nodes=[8], dropout=[.1], activation=['relu'], num_layers=[2], epochs=[30], batch_size=[100])
 
         y_no_noise, x_no_noise, tmt_no_noise = get_no_noise_data(num_obs)
 
         uplift_model = MRUplift()
         uplift_model.fit(x_no_noise, y_no_noise, tmt_no_noise.reshape(-1, 1),
-                         n_jobs=1, param_grid = param_grid, optimized_loss = True)
+                         n_jobs=1, param_grid = param_grid, optimized_loss = False)
         oos_ice = uplift_model.predict_ice(response_transformer = True)
 
         assert np.sqrt(np.mean((oos_ice.mean(axis=1) - true_ATE)**2)) < rmse_tolerance
