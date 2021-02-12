@@ -15,7 +15,7 @@ from tensorflow.keras.activations import softmax, exponential
 from tensorflow.keras.layers import Softmax
 from sklearn.model_selection import KFold, ParameterGrid
 from mr_uplift.erupt import get_weights, erupt
-
+import tensorflow as tf
 
 def reduce_concat(x):
     """concatenates object into one string
@@ -218,13 +218,11 @@ def create_mo_optim_model(input_shape, num_responses, unique_treatments, num_lay
     outputs_weighted = concatenate(outputs_weighted, axis = 1)
 
     util_by_tmts = Lambda(lambda x: K.sum(x, axis=-1))(outputs_weighted)
+
+    masked_inp = tf.where(masks!=0, util_by_tmts, tf.float64.min)
     util_by_tmts_prob = Lambda(lambda x: softmax(x), name = 'util_by_tmts_prob')(util_by_tmts)
 
-    #util_by_tmts_exp = Lambda(lambda x: exponential(x), name = 'util_by_tmts_exp')(util_by_tmts)
-    #util_by_tmts_exp_masked = Multiply()([util_by_tmts_exp, masks])
-    #util_by_tmts_prob = Lambda(lambda x: x / K.reshape(K.sum(x, axis = 1, keepdims=True), (-1,1)), name = 'util_by_tmts_prob')(util_by_tmts_exp_masked)
-
-    model = Model([inputs_x, util_weights, masks], [util_by_tmts_prob,outputs_mse])
+    model = Model([inputs_x, util_weights, masks], [util_by_tmts_prob, outputs_mse])
     model.compile(optimizer='rmsprop',
                 loss={'util_by_tmts_prob':optim_loss, 'outputs_mse': missing_mse_loss_multi_output},
                loss_weights={'util_by_tmts_prob': alpha, 'outputs_mse': (1-alpha)})
@@ -331,6 +329,8 @@ copy_several_times = None, random_seed = 22):
     missing_utility = pd.get_dummies(pd.DataFrame(str_t).iloc[:,0])
     missing_utility = np.array(missing_utility[[k for k,v in treatments_order.items()]])
     missing_utility = utility_y.reshape(-1,1)*missing_utility
+
+    mask = np.array(mask,dtype=bool)
 
     return x, utility_weights, missing_utility, missing_y_mat, mask, weights
 
