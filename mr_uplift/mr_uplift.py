@@ -160,7 +160,7 @@ class MRUplift(object):
                 param_grid_propensity = {
                 'n_estimators': [500],
                 'max_features': ['auto'],
-                'max_depth': [1,2,4],
+                'max_depth': [1,2,4,8],
                 'oob_score' : [True],
                 'n_jobs' : [-1]
                     }
@@ -351,6 +351,7 @@ class MRUplift(object):
 
             propensity_scores = pd.DataFrame(1/self.propensity_model.predict_proba(self.x_ss.transform(x)))
             propensity_scores.columns = self.propensity_model.classes_
+            propensity_scores = propensity_scores[str_unique_treatments]
 
             mask_tmt_locations = np.array((propensity_scores < propensity_score_cutoff)*1)
 
@@ -445,6 +446,14 @@ class MRUplift(object):
             propensity_scores = pd.DataFrame(1/self.propensity_model.predict_proba(self.x_ss.transform(x)))
             propensity_scores.columns = self.propensity_model.classes_
 
+            #sort columns for treatments to be alligned
+            if treatments.shape[1] > 1:
+                unique_t = reduce_concat(treatments)
+            else:
+                unique_t = treatments
+
+            propensity_scores = propensity_scores[unique_t]
+
             mask_tmt_locations = np.array((propensity_scores < propensity_score_cutoff)*1)
         else:
             mask_tmt_locations = None
@@ -452,11 +461,6 @@ class MRUplift(object):
         ice = self.predict_ice(x, treatments, calibrator, response_transformer = response_transformer)
 
         if self.num_responses > 1:
-
-            if treatments.shape[1] > 1:
-                unique_t = reduce_concat(treatments)
-            else:
-                unique_t = treatments
 
             best_treatments = get_best_tmts(objective_weights, ice, treatments,
                 mask_tmt_locations = mask_tmt_locations)

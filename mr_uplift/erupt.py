@@ -42,11 +42,8 @@ def erupt(y, tmt, optim_tmt, weights=None, names=None):
 
     equal_locs = np.where(optim_tmt == tmt)[0]
 
-    erupts = [weighted_avg_and_std(y[equal_locs][:,
-                                                 x].reshape(-1,
-                                                            1),
-                                   weights[equal_locs].reshape(-1,
-                                                               1)) for x in range(y.shape[1])]
+    erupts = [weighted_avg_and_std(y[equal_locs][:,x].reshape(-1,1),
+            weights[equal_locs].reshape(-1,1)) for x in range(y.shape[1])]
 
     erupts = pd.DataFrame(erupts)
     erupts.columns = ['mean', 'std']
@@ -77,7 +74,7 @@ def get_best_tmts(objective_weights, ice, unique_tmts, mask_tmt_locations = None
     sum_weighted_ice = np.array(weighted_ice).sum(axis=2).T
 
     if mask_tmt_locations is not None:
-        sum_weighted_ice = softmax(sum_weighted_ice)*mask_tmt_locations
+        sum_weighted_ice = softmax(sum_weighted_ice*mask_tmt_locations - (1-mask_tmt_locations)*10**6)
 
     max_values = sum_weighted_ice.argmax(axis=1)
 
