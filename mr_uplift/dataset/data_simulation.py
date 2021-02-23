@@ -176,4 +176,4 @@ def get_observational_uplift_data(num_obs):
 
     tmt = np.array(tmt)
 
-    return y, x, tmt
+    return y, x, tmt, rule_assignment

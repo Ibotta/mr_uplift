@@ -214,7 +214,7 @@ class TestMRUplift(object):
         num_obs = 10000
         propensity_score_cutoff = 100
         TOLERANCE = .98
-        y, x, t = get_observational_uplift_data(num_obs)
+        y, x, t, rule_assignment = get_observational_uplift_data(num_obs)
 
         param_grid = dict(num_nodes=[8], dropout=[.1], activation=['relu'], num_layers=[1],
                                 epochs=[20], batch_size=[512],
@@ -222,9 +222,9 @@ class TestMRUplift(object):
 
         uplift_model = MRUplift()
         uplift_model.fit(x, y[:,0].reshape(-1,1), t, param_grid = param_grid, n_jobs=1,
-            optimized_loss = True, use_propensity = True, test_size = 0, cv = 2)
+            optimized_loss = True, use_propensity = True, test_size = 0)
         uplift_model.best_params_net
-        y_test, x_test, t_test = get_observational_uplift_data(num_obs)
+        y_test, x_test, t_test, rule_assignment_test = get_observational_uplift_data(num_obs)
 
 
         experiment_groups = np.zeros(num_obs)+2
@@ -256,4 +256,4 @@ class TestMRUplift(object):
         assert correct_tmts_experiment_groups_1>TOLERANCE
 
         assert np.array_equal(optim_treatments_cuttoff_cat,optim_treatments_no_cuttoff_cat) is False
-        assert correct_tmts_no_cutoff>TOLERANCE 
+        assert correct_tmts_no_cutoff>TOLERANCE
