@@ -152,7 +152,7 @@ class MRUplift(object):
         x_t_train = np.concatenate([t_train_scaled, x_train_scaled], axis=1)
 
 
-        str_t_train, str_unique_treatments = treatments_to_text(t_train, self.unique_t)
+        str_t_train, str_unique_treatments = treatments_to_text(t_train.astype('float'), self.unique_t)
 
         if optimized_loss:
             if use_propensity:
@@ -172,7 +172,7 @@ class MRUplift(object):
                 self.propensity_model = propensity_model.best_estimator_
                 propensity_model = propensity_model.best_estimator_
 
-                propensity_scores = pd.DataFrame(1/propensity_model.oob_decision_function_)
+                propensity_scores = pd.DataFrame(1/(propensity_model.oob_decision_function_+np.finfo(float).eps))
                 propensity_scores.columns = propensity_model.classes_
 
                 mask_tmt_locations = np.array((propensity_scores < propensity_score_cutoff)*1)
@@ -185,11 +185,16 @@ class MRUplift(object):
                 mask_tmt_locations = np.ones(t_train.shape[0]*len(self.unique_t)).reshape(t_train.shape[0], len(self.unique_t))
                 observation_weights = get_weights(str_t_train)
 
-            net = gridsearch_mo_optim(x_train_scaled, y_train_scaled, t_train_scaled,
-                                                 param_grid=param_grid,
-                                                 n_splits=cv,
-                                                 observation_weights=observation_weights,
-                                                 mask_tmt_locations=mask_tmt_locations)
+            keep_locs_on_observations = np.where(observation_weights > propensity_score_cutoff/(propensity_score_cutoff-1))[0]
+
+            net = gridsearch_mo_optim(x_train_scaled[keep_locs_on_observations],
+                                      y_train_scaled[keep_locs_on_observations],
+                                      t_train_scaled[keep_locs_on_observations],
+                         param_grid=param_grid,
+                         n_splits=cv,
+                         observation_weights=observation_weights[keep_locs_on_observations],
+                         mask_tmt_locations=mask_tmt_locations[keep_locs_on_observations])
+
             self.best_score_net = net[2]
             self.best_params_net = net[1]
             #only need embedded layer and not whole net
@@ -349,7 +354,8 @@ class MRUplift(object):
 
         if self.propensity_model is not None:
 
-            propensity_scores = pd.DataFrame(1/self.propensity_model.predict_proba(self.x_ss.transform(x)))
+            prob_tmts = self.propensity_model.predict_proba(self.x_ss.transform(x))+np.finfo(float).eps
+            propensity_scores = pd.DataFrame(1/prob_tmts)
             propensity_scores.columns = self.propensity_model.classes_
             propensity_scores = propensity_scores[str_unique_treatments]
 
@@ -415,7 +421,8 @@ class MRUplift(object):
 
     def predict_optimal_treatments(self, x, objective_weights=None, treatments=None,
                                    calibrator=False, response_transformer = False,
-                                   propensity_score_cutoff = 100):
+                                   propensity_score_cutoff = 100,
+                                   use_propensity_score_cutoff = True):
         """Calculates optimal treatments of model output given explanatory
             variables and weights
 
@@ -432,6 +439,8 @@ class MRUplift(object):
             becuase model optimizes scaled data.
           propensity_score_cutoff (float): maximum weight of propensity score. If too high than it wouldn't have had
             much support in original model and should probably be exlcuded.
+          use_propensity_score_cutoff(boolean): If false it will not mask treatments for predictions based on propensity
+          scores.
 
         Returns:
           Optimal Treatment Values
@@ -442,16 +451,14 @@ class MRUplift(object):
         if treatments is None:
             treatments = self.unique_t
 
-        if self.propensity_model is not None:
-            propensity_scores = pd.DataFrame(1/self.propensity_model.predict_proba(self.x_ss.transform(x)))
+        if self.propensity_model is not None and use_propensity_score_cutoff:
+
+            prob_tmts = self.propensity_model.predict_proba(self.x_ss.transform(x))+np.finfo(float).eps
+            propensity_scores = pd.DataFrame(1/prob_tmts)
+
             propensity_scores.columns = self.propensity_model.classes_
 
-            #sort columns for treatments to be alligned
-            if treatments.shape[1] > 1:
-                unique_t = reduce_concat(treatments)
-            else:
-                unique_t = treatments
-
+            unique_t = reduce_concat(treatments)
             propensity_scores = propensity_scores[unique_t]
 
             mask_tmt_locations = np.array((propensity_scores < propensity_score_cutoff)*1)
@@ -466,11 +473,13 @@ class MRUplift(object):
                 mask_tmt_locations = mask_tmt_locations)
         else:
 
-            if self.propensity_model is not None:
+            if self.propensity_model is not None and use_propensity_score_cutoff:
                 ice = ice[:,:,0].T
-
                 ice = softmax(ice)*mask_tmt_locations
                 ice = ice.T
+
+            else:
+                ice = ice[:,:,0]
 
             best_treatments = treatments[np.argmax(ice, axis=0)]
 
@@ -614,7 +623,8 @@ class MRUplift(object):
 
         if self.propensity_model is not None:
 
-            propensity_scores = pd.DataFrame(1/self.propensity_model.predict_proba(self.x_ss.transform(x)))
+            prob_tmts = self.propensity_model.predict_proba(self.x_ss.transform(x))+np.finfo(float).eps
+            propensity_scores = pd.DataFrame(1/prob_tmts)
             propensity_scores.columns = self.propensity_model.classes_
 
             mask_tmt_locations = np.array((propensity_scores < propensity_score_cutoff)*1)
