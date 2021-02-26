@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from mr_uplift.dataset.data_simulation import get_no_noise_data, get_simple_uplift_data, get_observational_uplift_data
+from mr_uplift.dataset.data_simulation import get_no_noise_data, get_simple_uplift_data, get_observational_uplift_data_1
 from mr_uplift.mr_uplift import MRUplift, get_t_data
 from mr_uplift.keras_model_functionality import prepare_data_optimized_loss
 import sys
@@ -210,11 +210,11 @@ class TestMRUplift(object):
         assert varimp_propensity['permutation_varimp_metric'].iloc[0]>varimp_propensity['permutation_varimp_metric'].iloc[1]
 
 
-    def test_model_pred_oos_shapes_single_col_tmt_propensity(self):
+    def test_model_propensity(self):
         num_obs = 10000
         propensity_score_cutoff = 100
         TOLERANCE = .98
-        y, x, t, rule_assignment = get_observational_uplift_data(num_obs)
+        y, x, t, rule_assignment = get_observational_uplift_data_1(num_obs)
 
         param_grid = dict(num_nodes=[8], dropout=[.1], activation=['relu'], num_layers=[1],
                                 epochs=[20], batch_size=[512],
@@ -224,7 +224,7 @@ class TestMRUplift(object):
         uplift_model.fit(x, y[:,0].reshape(-1,1), t, param_grid = param_grid, n_jobs=1,
             optimized_loss = True, use_propensity = True, test_size = 0)
         uplift_model.best_params_net
-        y_test, x_test, t_test, rule_assignment_test = get_observational_uplift_data(num_obs)
+        y_test, x_test, t_test, rule_assignment_test = get_observational_uplift_data_1(num_obs)
 
 
         experiment_groups = np.zeros(num_obs)+2
