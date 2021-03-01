@@ -2,6 +2,10 @@ import numpy as np
 import pandas as pd
 import random
 
+def softmax(x):
+    """Compute softmax values for each sets of scores in x."""
+    e_x = np.exp(x - np.max(x, axis = 1).reshape(-1,1))
+    return e_x / e_x.sum(axis = 1).reshape(-1,1)
 
 def weighted_avg_and_std(values, weights):
     """computes weighted averages and stdevs
@@ -38,11 +42,8 @@ def erupt(y, tmt, optim_tmt, weights=None, names=None):
 
     equal_locs = np.where(optim_tmt == tmt)[0]
 
-    erupts = [weighted_avg_and_std(y[equal_locs][:,
-                                                 x].reshape(-1,
-                                                            1),
-                                   weights[equal_locs].reshape(-1,
-                                                               1)) for x in range(y.shape[1])]
+    erupts = [weighted_avg_and_std(y[equal_locs][:,x].reshape(-1,1),
+            weights[equal_locs].reshape(-1,1)) for x in range(y.shape[1])]
 
     erupts = pd.DataFrame(erupts)
     erupts.columns = ['mean', 'std']
@@ -56,23 +57,28 @@ def erupt(y, tmt, optim_tmt, weights=None, names=None):
     return erupts
 
 
-def get_best_tmts(objective_weights, ice, unique_tmts):
+def get_best_tmts(objective_weights, ice, unique_tmts, mask_tmt_locations = None):
     """Calulcates Optimal Treatment for a set of counterfactuals and weights.
     Args:
         objective_weights (np.array): list of weights to maximize in objective function
         ice (np.array): 3-d array of counterfactuals.
             num_tmts x num_observations x num_responses
         unique_tmts (np.array): list of treatments
+        mask_tmt_locations (np.array): 2-d array of observations x treatments.
+            1 if allowed 0 if user shouldn't receive particular treatment.
     Returns:
         Optimal Treatment with specific objective function
     """
 
     weighted_ice = [x * objective_weights for x in ice]
-    sum_weighted_ice = np.array(weighted_ice).sum(axis=2)
+    sum_weighted_ice = np.array(weighted_ice).sum(axis=2).T
 
-    max_values = sum_weighted_ice.T.argmax(axis=1)
+    if mask_tmt_locations is not None:
+        sum_weighted_ice = softmax(sum_weighted_ice*mask_tmt_locations - (1-mask_tmt_locations)*10**6)
 
-    best_tmt = unique_tmts[np.array(max_values)]
+    max_values = sum_weighted_ice.argmax(axis=1)
+
+    best_tmt = np.array(unique_tmts)[np.array(max_values)]
 
     return(best_tmt)
 
@@ -98,6 +104,7 @@ def get_weights(tmts):
 
 
 def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
+                        mask_tmt_locations=None, observation_weights=None,
                            names=None):
     """Calculates optimal treatments and returns erupt
     Args:
@@ -108,6 +115,9 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
         objective_weights (np.array): list of weights to maximize in objective
         function
         names (list of str): names of response variables
+        mask_tmt_locations (np.array): 2-d array of observations x treatments.
+            1 if allowed 0 if user shouldn't receive particular treatment.
+
     Returns:
         Dataframe of ERUPT metrics for each response variable for a given set
         of objective weights
@@ -115,11 +125,16 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
 
     all_erupts = []
     all_distributions = []
-    observation_weights = get_weights(tmt)
+
+    if observation_weights is None:
+        observation_weights = np.ones(y.shape[0])
+
+    if mask_tmt_locations is None:
+        mask_tmt_locations = np.ones(y.shape[0]*len(unique_tmts)).reshape(y.shape[0],len(unique_tmts))
 
     for obj_weight in objective_weights:
 
-        optim_tmt = get_best_tmts(obj_weight, ice, unique_tmts)
+        optim_tmt = get_best_tmts(obj_weight, ice, unique_tmts, mask_tmt_locations)
         random_tmt = optim_tmt.copy()[
             np.random.choice(
                 len(optim_tmt),

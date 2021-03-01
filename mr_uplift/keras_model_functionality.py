@@ -11,10 +11,11 @@ from numpy.random import seed
 from sklearn.metrics import make_scorer
 from sklearn.model_selection import GridSearchCV
 from tensorflow.keras.losses import mean_squared_error
-from tensorflow.keras.activations import softmax
+from tensorflow.keras.activations import softmax, exponential
+from tensorflow.keras.layers import Softmax
 from sklearn.model_selection import KFold, ParameterGrid
-
 from mr_uplift.erupt import get_weights, erupt
+import tensorflow as tf
 
 def reduce_concat(x):
     """concatenates object into one string
@@ -194,6 +195,7 @@ def create_mo_optim_model(input_shape, num_responses, unique_treatments, num_lay
 
     inputs_x = Input(shape=(input_shape,))
     util_weights = Input(shape=(num_responses,))
+    masks = Input(shape=(unique_treatments.shape[0],))
 
     batch_size = K.shape(inputs_x)[0]
 
@@ -216,9 +218,11 @@ def create_mo_optim_model(input_shape, num_responses, unique_treatments, num_lay
     outputs_weighted = concatenate(outputs_weighted, axis = 1)
 
     util_by_tmts = Lambda(lambda x: K.sum(x, axis=-1))(outputs_weighted)
+
+    masked_inp = tf.where(masks!=0, util_by_tmts, tf.float64.min)
     util_by_tmts_prob = Lambda(lambda x: softmax(x), name = 'util_by_tmts_prob')(util_by_tmts)
 
-    model = Model([inputs_x, util_weights], [util_by_tmts_prob,outputs_mse])
+    model = Model([inputs_x, util_weights, masks], [util_by_tmts_prob, outputs_mse])
     model.compile(optimizer='rmsprop',
                 loss={'util_by_tmts_prob':optim_loss, 'outputs_mse': missing_mse_loss_multi_output},
                loss_weights={'util_by_tmts_prob': alpha, 'outputs_mse': (1-alpha)})
@@ -226,7 +230,7 @@ def create_mo_optim_model(input_shape, num_responses, unique_treatments, num_lay
     return model
 
 
-def copy_data(x,y,t, n):
+def copy_data(x,y,t, masks, weights, n):
     """Copys input data n times. Found to be helpul in building create_mo_optim_model
     Args:
         x (arrary): input data
@@ -239,7 +243,10 @@ def copy_data(x,y,t, n):
     x = np.concatenate([x.copy() for q in range(n)])
     y = np.concatenate([y.copy() for q in range(n)])
     t = np.concatenate([t.copy() for q in range(n)])
-    return x, y, t
+    masks = np.concatenate([masks.copy() for q in range(n)])
+    weights = np.concatenate([weights.copy() for q in range(n)])
+
+    return x, y, t, masks, weights
 
 
 def get_random_weights(y, random_seed = 22):
@@ -255,11 +262,24 @@ def get_random_weights(y, random_seed = 22):
     if n_responses == 1:
         utility_weights = np.ones(n_obs).reshape(-1,1)
     else:
-        utility_weights = np.concatenate([np.random.uniform(-1,1,n_obs).reshape(-1,1) for q in range(n_responses)], axis = 1)
+        utility_weights = np.concatenate([np.random.uniform(0,1,n_obs).reshape(-1,1) for q in range(n_responses)], axis = 1)
+        utility_weights = utility_weights#/utility_weights.sum(axis = 1).reshape(-1,1)
+        #utility_weights_neg = 1-2*(np.concatenate([np.random.uniform(0,1,n_obs).reshape(-1,1) for q in range(n_responses)], axis = 1)<.5)
+        #utility_weights = utility_weights*utility_weights_neg
     return utility_weights
 
+def treatments_to_text(t, unique_treatments):
+    if(unique_treatments.shape[1] > 1):
+        str_t = reduce_concat(t)
+        str_unique_treatments = reduce_concat(unique_treatments)
+    else:
+        str_t = [str(q) for q in np.squeeze(t)]
+        str_unique_treatments = ([str(q) for q in np.squeeze(unique_treatments)])
 
-def prepare_data_optimized_loss(x, y ,t, unique_treatments, weighted_treatments = False,
+    return str_t, str_unique_treatments
+
+
+def prepare_data_optimized_loss(x, y , t, mask, unique_treatments, weights = None,
 copy_several_times = None, random_seed = 22):
     """Prepares dataset to be used in `create_mo_optim_model` model build.
     Args:
@@ -267,7 +287,6 @@ copy_several_times = None, random_seed = 22):
         y (np array): response variables
         t (np array): treatment variable
         unique_tmts (np array): unique treatment variables
-        weighted_treatments (Boolean): If there are non-uniform treatments this will
         weight observations inverse proportional to frequency of treatment
         copy_several_times (int): number of times to repeat dataset and create random weights
         random_seed (int): seed for rng
@@ -280,16 +299,13 @@ copy_several_times = None, random_seed = 22):
         has non -999 values for
     """
 
-    if copy_several_times is not None:
-        x,y,t = copy_data(x,y,t, copy_several_times)
-    unique_treatments = unique_treatments.reshape(unique_treatments.shape[0], -1)
+    if weights is None:
+        weights = np.ones(y.shape[0])
 
-    if(unique_treatments.shape[1] > 1):
-        str_t = reduce_concat(t)
-        str_unique_treatments = reduce_concat(unique_treatments)
-    else:
-        str_t = [str(q) for q in np.squeeze(t)]
-        str_unique_treatments = ([str(q) for q in np.squeeze(unique_treatments)])
+    if copy_several_times is not None:
+        x,y,t, mask, weights = copy_data(x,y,t,mask, weights, copy_several_times)
+
+    str_t, str_unique_treatments = treatments_to_text(t, unique_treatments)
 
     #used to maintain order of treatments
     treatments_order = dict(zip(str_unique_treatments,  range(len(str_unique_treatments))))
@@ -305,11 +321,6 @@ copy_several_times = None, random_seed = 22):
     utility_weights = get_random_weights(y, random_seed = random_seed)
     utility_y = (utility_weights*np.array(y)).sum(axis=1)
     #get weights of treatments if treatments not uniform
-    if weighted_treatments:
-        weights = np.array(get_weights(str_t))
-        weights = weights * len(weights)/weights.sum()
-    else:
-        weights = np.ones(len(str_t))
 
     utility_y = utility_y.reshape(-1,1)*weights.reshape(-1,1)
 
@@ -319,10 +330,12 @@ copy_several_times = None, random_seed = 22):
     missing_utility = np.array(missing_utility[[k for k,v in treatments_order.items()]])
     missing_utility = utility_y.reshape(-1,1)*missing_utility
 
-    return x, utility_weights, missing_utility, missing_y_mat
+    mask = np.array(mask,dtype=bool)
+
+    return x, utility_weights, missing_utility, missing_y_mat, mask, weights
 
 
-def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
+def gridsearch_mo_optim(x, y, t, observation_weights, mask_tmt_locations, n_splits=5,  param_grid=None):
     """Gridsearches over create_mo_optim_model. Since it has multiple inputs/ outputs
     I 'rolled' my own.
 
@@ -331,13 +344,19 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
         y (np array): response variables
         t (np array): treatment variable
         param_grid (dictionary): parameter grid values
+        use_propensity (Boolean): If True will build propensity model and weight observations accordingly
+        propensity_cutoff_weight (float): Anything greater than this propensity weight will be masked
     Returns:
         mod (keras model): Fitted model with best hyperparameters
         optim_grid (dictionary): best hyperparameters in dictionary
         model_score (float): best score of data
+        propensity_model (rf classifier): Propensity model only if use_propensity is True
     """
 
     unique_treatments = np.unique(t, axis = 0)
+
+    if len(unique_treatments.shape) == 1:
+        unique_treatments = unique_treatments.reshape(unique_treatments.shape[0], -1)
 
     grid = ParameterGrid(param_grid)
 
@@ -346,16 +365,25 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
 
     results = []
     for params in grid:
-
         copy_several_times = params['copy_several_times']
         temp_results = []
 
+
         for train_index, test_index in kf.split(y):
 
-            x_train, utility_weights_train, new_response_train, big_y_train  = prepare_data_optimized_loss(x[train_index],y[train_index],
-            t[train_index], unique_treatments, weighted_treatments = True, copy_several_times = copy_several_times)
-            x_test, utility_weights_test, new_response_test, big_y_test   = prepare_data_optimized_loss(x[test_index], y[test_index],
-            t[test_index], unique_treatments, weighted_treatments = False, copy_several_times = None)
+            weights_train = observation_weights[train_index]
+            weights_test = observation_weights[test_index]
+
+            mask_train = mask_tmt_locations[train_index]
+            mask_test = mask_tmt_locations[test_index]
+
+
+            x_train, utility_weights_train, new_response_train, big_y_train, mask_train, weights_train  = prepare_data_optimized_loss(x[train_index],y[train_index],
+            t[train_index], mask = mask_train, unique_treatments = unique_treatments,  weights = weights_train, copy_several_times = copy_several_times)
+            x_test, utility_weights_test, new_response_test, big_y_test, mask_test, weights_test   = prepare_data_optimized_loss(x[test_index], y[test_index],
+            t[test_index], mask = mask_test, unique_treatments = unique_treatments, weights = None, copy_several_times = None)
+
+
 
             mod = create_mo_optim_model(input_shape = x.shape[1],
               num_responses = y.shape[1],
@@ -366,18 +394,18 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
               alpha = params['alpha'],
               activation = params['activation'])
 
-            mod.fit([x_train, utility_weights_train], [new_response_train, big_y_train],
+            mod.fit([x_train, utility_weights_train, mask_train], [new_response_train, big_y_train],
             epochs = params['epochs'],
             batch_size = params['batch_size'],
             verbose = False)
 
-            preds = mod.predict([x_test, utility_weights_test])[0]
+            preds = mod.predict([x_test, utility_weights_test,mask_test])[0]
 
-            optim_value_location = np.argmax(preds, axis = 1)
+            preds_masked = preds*mask_test - (1-mask_test)*10**6
+            optim_value_location = np.argmax(preds_masked, axis = 1)
             tmt_location = np.argmax(np.abs(new_response_test), axis = 1)
 
-            weights = get_weights(tmt_location)
-            erupts = erupt(np.array(new_response_test).sum(axis=1).reshape(-1,1), tmt_location, optim_value_location, weights=weights, names=None)
+            erupts = erupt(np.array(new_response_test).sum(axis=1).reshape(-1,1), tmt_location, optim_value_location, weights=weights_test, names=None)
 
             temp_results.append(erupts['mean'])
 
@@ -393,11 +421,11 @@ def gridsearch_mo_optim(x, y, t, n_splits=5,  param_grid=None):
             alpha = optim_grid['alpha'],
             activation = optim_grid['activation'])
 
+    x, utility_weights, new_response, big_y, mask_train, weights_train  = prepare_data_optimized_loss(x,y,t,mask_tmt_locations, unique_treatments,
+    weights = observation_weights, copy_several_times = optim_grid['copy_several_times'])
 
-    x, utility_weights, new_response, big_y  = prepare_data_optimized_loss(x,y,t,unique_treatments,
-    weighted_treatments = True, copy_several_times = optim_grid['copy_several_times'])
 
-    mod.fit([x, utility_weights] , [new_response, big_y], epochs = optim_grid['epochs'],
+    mod.fit([x, utility_weights, mask_train] , [new_response, big_y], epochs = optim_grid['epochs'],
         batch_size = optim_grid['batch_size'], verbose = False)
 
     return mod, optim_grid, results[np.argmax(np.array(results))]
