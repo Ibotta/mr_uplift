@@ -637,12 +637,31 @@ class MRUplift(object):
             observation_weights = get_weights(str_t)
 
 
+        tmt_effects = pd.DataFrame(y)
+        tmt_effects['tmt'] = str_t
+        tmt_effects_mean = tmt_effects.groupby('tmt').mean()
+
+        utility_by_best_global_tmt = np.array([(objective_weights*x).sum(axis=1) for x in tmt_effects_mean])
+        best_single_tmt = tmt_effects_mean.index.values[utility_by_best_global_tmt.argmax(axis = 0)]
+
+        utility = (objective_weights*y).sum(axis=1)
+
+        y_temp = np.concatenate([y, utility.reshape(-1,1)], axis = 1)
+
+
         optim_tmt = self.predict_optimal_treatments(x,
-        objective_weights=objective_weights,  treatments=treatments,
-        calibrator=calibrator, response_transformer = response_transformer)
+                                                    objective_weights=objective_weights,  treatments=treatments,
+                                                    calibrator=calibrator, response_transformer = response_transformer)
 
         new_y = (objective_weights*y).sum(axis = 1).reshape(-1,1)
 
         erupt_new_y = erupt(new_y, t, optim_tmt, weights = observation_weights)
+        erupt_base_tmt = erupt(new_y, str_t_series, best_single_tmt, weights = observation_weights.reshape(-1,1))
 
-        return(erupt_new_y)
+        erupt_new_y['type'] = 'model'
+        erupt_base_tmt['type'] = 'ate'
+
+        erupts = pd.concat([erupt_new_y, erupt_base_tmt])
+
+
+        return(erupts)
