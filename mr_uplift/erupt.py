@@ -140,7 +140,7 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
 
     for obj_weight in objective_weights:
 
-        best_single_tmt = tmt_effects_mean.index.values[(obj_weight.reshape(-1,1)*tmt_effects_mean).sum(axis=1).argmax()]
+        best_single_tmt = tmt_effects_mean.index.values[tmt_effects_mean.multiply(obj_weight, axis = 1).sum(axis=1).argmax()]
         utility = (obj_weight.reshape(1,-1)*y).sum(axis=1)
 
         y_temp = np.concatenate([y, utility.reshape(-1,1)], axis = 1)
@@ -155,16 +155,16 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
         str_obj_weight = ','.join([str(q) for q in obj_weight])
 
         if names is not None:
-            temp_names = np.append(names, 'utility')
+            names = np.append(names, 'utility')
 
         erupts = erupt(y_temp, tmt, optim_tmt, weights=observation_weights,
-                       names=temp_names)
+                       names=names)
 
         erupts_random = erupt(y_temp, tmt, random_tmt, weights=observation_weights,
-                              names=temp_names)
+                              names=names)
 
         erupts_best_single_tmt = erupt(y_temp, tmt, np.repeat(best_single_tmt, y.shape[0]), weights=observation_weights,
-                              names=temp_names)
+                              names=names)
 
 
 

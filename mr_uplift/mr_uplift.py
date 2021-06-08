@@ -620,6 +620,7 @@ class MRUplift(object):
             objective_weights = get_random_weights(y, random_seed)
 
         str_t, str_unique_treatments = treatments_to_text(t, treatments)
+        str_t_series = pd.Series(str_t)
 
         if self.propensity_model is not None:
 
@@ -629,7 +630,7 @@ class MRUplift(object):
 
             mask_tmt_locations = np.array((propensity_scores < propensity_score_cutoff)*1)
 
-            str_t_series = pd.Series(str_t)
+
             observation_weights = propensity_scores.lookup(str_t_series.index, str_t_series.values)
 
         else:

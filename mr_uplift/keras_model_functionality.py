@@ -259,13 +259,13 @@ def get_random_weights(y, random_seed = 22):
     np.random.seed(random_seed)
     n_obs = y.shape[0]
     n_responses = y.shape[1]
-    if n_responses == 1:
-        utility_weizghts = np.ones(n_obs).reshape(-1,1)
-    else:
+    if n_responses > 1:
         utility_weights = np.random.uniform(0,1,size = n_obs*n_responses).reshape(n_obs,n_responses)
         utility_weights = utility_weights/np.abs(utility_weights).sum(axis=1).reshape(-1,1)
         utility_weights_neg = 1-2*(np.concatenate([np.random.uniform(0,1,n_obs).reshape(-1,1) for q in range(n_responses)], axis = 1)<.5)
         utility_weights = utility_weights*utility_weights_neg
+    else:
+        utility_weights = np.ones(n_obs).reshape(-1,1)
     return utility_weights
 
 def treatments_to_text(t, unique_treatments):
