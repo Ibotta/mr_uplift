@@ -45,8 +45,9 @@ class TestMRUplift(object):
 
         t = np.concatenate([t.reshape(-1, 1),
         np.random.binomial(1, .5, num_obs).reshape(-1, 1)], axis=1)
+
         param_grid = dict(num_nodes=[8], dropout=[.1], activation=[
-                                  'relu'], num_layers=[1], epochs=[1], batch_size=[1000])
+                'relu'], num_layers=[1], epochs=[1], batch_size=[1000])
 
         uplift_model = MRUplift()
         uplift_model.fit(x, y, t, param_grid = param_grid, n_jobs=1)
@@ -212,7 +213,6 @@ class TestMRUplift(object):
 
     def test_model_propensity(self):
         num_obs = 10000
-        propensity_score_cutoff = 100
         TOLERANCE = .98
         y, x, t, rule_assignment = get_observational_uplift_data_1(num_obs)
 
@@ -234,8 +234,7 @@ class TestMRUplift(object):
 
 
         optim_treatments_no_cuttoff = uplift_model.predict_optimal_treatments(x = x_test, use_propensity_score_cutoff = False)
-        optim_treatments_cuttoff = uplift_model.predict_optimal_treatments(x = x_test, use_propensity_score_cutoff = True,
-            propensity_score_cutoff = propensity_score_cutoff)
+        optim_treatments_cuttoff = uplift_model.predict_optimal_treatments(x = x_test, use_propensity_score_cutoff = True)
 
         optim_treatments_cuttoff_cat = optim_treatments_cuttoff.argmax(axis = 1)
         optim_treatments_no_cuttoff_cat = optim_treatments_no_cuttoff.argmax(axis = 1)
