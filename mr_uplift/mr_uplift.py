@@ -77,6 +77,8 @@ class MRUplift(object):
         PCA_x (boolean): If True it will use PCA to preprocess explanatory variables
         PCA_y (boolean): If True it will use PCA to preprocess response variables
         use_propensity (boolean): If True will use propensity scores from a RF. Best for observational data.
+        propensity_score_cutoff (float): maximum weight of propensity score. If too high than it wouldn't have had
+          much support in original model and should probably be exlcuded.
 
         Returns:
         Builds a neural network and assigns it to self.model
@@ -93,6 +95,7 @@ class MRUplift(object):
 
         self.test_size = test_size
         self.random_state = random_state
+        self.propensity_score_cutoff = propensity_score_cutoff
 
         if isinstance(x, pd.DataFrame):
             self.x_names = x.columns.values
@@ -175,7 +178,7 @@ class MRUplift(object):
                 propensity_scores = pd.DataFrame(1/(propensity_model.oob_decision_function_+np.finfo(float).eps))
                 propensity_scores.columns = propensity_model.classes_
 
-                mask_tmt_locations = np.array((propensity_scores < propensity_score_cutoff)*1)
+                mask_tmt_locations = np.array((propensity_scores < self.propensity_score_cutoff)*1)
 
                 str_t_series = pd.Series(str_t_train)
                 observation_weights = np.array(propensity_scores.lookup(str_t_series.index, str_t_series.values)).reshape(-1,1)
@@ -185,7 +188,7 @@ class MRUplift(object):
                 mask_tmt_locations = np.ones(t_train.shape[0]*len(self.unique_t)).reshape(t_train.shape[0], len(self.unique_t))
                 observation_weights = get_weights(str_t_train)
 
-            keep_locs_on_observations = np.where(observation_weights > propensity_score_cutoff/(propensity_score_cutoff-1))[0]
+            keep_locs_on_observations = np.where(observation_weights > self.propensity_score_cutoff/(self.propensity_score_cutoff-1))[0]
 
             net = gridsearch_mo_optim(x_train_scaled[keep_locs_on_observations],
                                       y_train_scaled[keep_locs_on_observations],
@@ -359,7 +362,7 @@ class MRUplift(object):
             propensity_scores.columns = self.propensity_model.classes_
             propensity_scores = propensity_scores[str_unique_treatments]
 
-            mask_tmt_locations = np.array((propensity_scores < propensity_score_cutoff)*1)
+            mask_tmt_locations = np.array((propensity_scores < self.propensity_score_cutoff)*1)
 
             t_series = pd.Series(str_t)
             observation_weights = propensity_scores.lookup(t_series.index, t_series.values)
@@ -421,7 +424,6 @@ class MRUplift(object):
 
     def predict_optimal_treatments(self, x, objective_weights=None, treatments=None,
                                    calibrator=False, response_transformer = False,
-                                   propensity_score_cutoff = 100,
                                    use_propensity_score_cutoff = True):
         """Calculates optimal treatments of model output given explanatory
             variables and weights
@@ -437,8 +439,6 @@ class MRUplift(object):
           response_transformer (boolean): If true will use the trained scaler to transform
             responses. I've noticed that using this in production degrades performance
             becuase model optimizes scaled data.
-          propensity_score_cutoff (float): maximum weight of propensity score. If too high than it wouldn't have had
-            much support in original model and should probably be exlcuded.
           use_propensity_score_cutoff(boolean): If false it will not mask treatments for predictions based on propensity
           scores.
 
@@ -461,7 +461,7 @@ class MRUplift(object):
             unique_t = reduce_concat(treatments)
             propensity_scores = propensity_scores[unique_t]
 
-            mask_tmt_locations = np.array((propensity_scores < propensity_score_cutoff)*1)
+            mask_tmt_locations = np.array((propensity_scores < self.propensity_score_cutoff)*1)
         else:
             mask_tmt_locations = None
 
