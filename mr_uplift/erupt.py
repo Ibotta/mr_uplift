@@ -123,6 +123,10 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
         of objective weights
     """
 
+    tmt_effects = pd.DataFrame(y)
+    tmt_effects['tmt'] = tmt
+    tmt_effects_mean = tmt_effects.groupby('tmt').mean()
+
     all_erupts = []
     all_distributions = []
 
@@ -130,9 +134,16 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
         observation_weights = np.ones(y.shape[0])
 
     if mask_tmt_locations is None:
-        mask_tmt_locations = np.ones(y.shape[0]*len(unique_tmts)).reshape(y.shape[0],len(unique_tmts))
+        mask_tmt_locations = np.ones(y.shape[0]*len(unique_tmts)).reshape(y.shape[0], len(unique_tmts))
+
+
 
     for obj_weight in objective_weights:
+
+        best_single_tmt = tmt_effects_mean.index.values[tmt_effects_mean.multiply(obj_weight, axis = 1).sum(axis=1).argmax()]
+        utility = (obj_weight.reshape(1,-1)*y).sum(axis=1)
+
+        y_temp = np.concatenate([y, utility.reshape(-1,1)], axis = 1)
 
         optim_tmt = get_best_tmts(obj_weight, ice, unique_tmts, mask_tmt_locations)
         random_tmt = optim_tmt.copy()[
@@ -143,22 +154,34 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
 
         str_obj_weight = ','.join([str(q) for q in obj_weight])
 
-        erupts = erupt(y, tmt, optim_tmt, weights=observation_weights,
+        if names is not None:
+            names = np.append(names, 'utility')
+
+        erupts = erupt(y_temp, tmt, optim_tmt, weights=observation_weights,
                        names=names)
 
-        erupts_random = erupt(y, tmt, random_tmt, weights=observation_weights,
+        erupts_random = erupt(y_temp, tmt, random_tmt, weights=observation_weights,
                               names=names)
+
+        erupts_best_single_tmt = erupt(y_temp, tmt, np.repeat(best_single_tmt, y.shape[0]), weights=observation_weights,
+                              names=names)
+
+
 
         erupts_random['weights'] = str_obj_weight
         erupts['weights'] = str_obj_weight
+        erupts_best_single_tmt['weights'] = str_obj_weight
+
 
         erupts_random['assignment'] = 'random'
         erupts['assignment'] = 'model'
+        erupts_best_single_tmt['assignment'] = 'best_single_tmt'
 
         erupts['treatment'] = '-1'
         erupts_random['treatment'] = '-1'
+        erupts_best_single_tmt['treatment'] = best_single_tmt
 
-        erupts = pd.concat([erupts, erupts_random], axis=0)
+        erupts = pd.concat([erupts, erupts_random, erupts_best_single_tmt], axis=0)
 
         dists = pd.DataFrame(optim_tmt).iloc[:, 0].value_counts()
         dist_treatments = pd.DataFrame(np.array(dists).reshape(-1, 1))
@@ -170,6 +193,7 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
 
         all_erupts.append(erupts)
         all_distributions.append(dist_treatments)
+
 
     for t in unique_tmts:
 

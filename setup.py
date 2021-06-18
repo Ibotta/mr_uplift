@@ -15,7 +15,7 @@ def parse_description(description):
         ])
 
 DISTNAME = "mr_uplift"
-VERSION = "0.0.13"
+VERSION = "0.0.14"
 DESCRIPTION = "Machine learning tools for uplift models"
 with open("README.rst") as f:
     LONG_DESCRIPTION = parse_description(f.read())
@@ -52,7 +52,7 @@ setup(name=DISTNAME,
       install_requires=[
           'numpy>1.17.2',
           'pandas>=0.20.0',
-          'tensorflow>=2.2.0',
+          'tensorflow==2.4.1',
           'keras',
           'dill',
           'sklearn'
