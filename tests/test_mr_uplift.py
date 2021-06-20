@@ -52,6 +52,13 @@ class TestMRUplift(object):
         uplift_model = MRUplift()
         uplift_model.fit(x, y, t, param_grid = param_grid, n_jobs=1)
 
+        x_1 = x.copy()
+        x_1 = pd.DataFrame(x_1)
+        x_1.columns = ['var_'+str(x) for x in range(x.shape[1])]
+
+        uplift_model_named = MRUplift()
+        uplift_model_named.fit(x_1, y, t, param_grid = param_grid, n_jobs=1)
+
         assert uplift_model.predict_ice().shape == (
             np.unique(t, axis=0).shape[0], num_obs * .7, y.shape[1])
 
@@ -62,6 +69,8 @@ class TestMRUplift(object):
         assert uplift_model.get_erupt_curves()
 
         assert uplift_model.get_erupt_curves(x = x, y = y, t = t)
+
+        assert uplift_model_named.get_erupt_curves()
 
     def test_model_pred_oos_shapes_single_col_tmt(self):
         num_obs = 1000
