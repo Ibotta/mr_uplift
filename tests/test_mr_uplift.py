@@ -56,8 +56,12 @@ class TestMRUplift(object):
         x_1 = pd.DataFrame(x_1)
         x_1.columns = ['var_'+str(x) for x in range(x.shape[1])]
 
+        y_1 = y.copy()
+        y_1 = pd.DataFrame(y_1)
+        y_1.columns = ['var_'+str(x) for x in range(y.shape[1])]
+
         uplift_model_named = MRUplift()
-        uplift_model_named.fit(x_1, y, t, param_grid = param_grid, n_jobs=1)
+        uplift_model_named.fit(x_1, y_1, t, param_grid = param_grid, n_jobs=1)
 
         assert uplift_model.predict_ice().shape == (
             np.unique(t, axis=0).shape[0], num_obs * .7, y.shape[1])
