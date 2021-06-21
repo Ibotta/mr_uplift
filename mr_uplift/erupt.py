@@ -50,6 +50,7 @@ def erupt(y, tmt, optim_tmt, weights=None, names=None):
 
     if names is not None:
         erupts['response_var_names'] = names
+
     else:
         erupts['response_var_names'] = [
             'var_' + str(x) for x in range(y.shape[1])]
@@ -136,6 +137,8 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
     if mask_tmt_locations is None:
         mask_tmt_locations = np.ones(y.shape[0]*len(unique_tmts)).reshape(y.shape[0], len(unique_tmts))
 
+    if names is not None:
+        names = np.append(names, 'utility')
 
 
     for obj_weight in objective_weights:
@@ -154,8 +157,6 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
 
         str_obj_weight = ','.join([str(q) for q in obj_weight])
 
-        if names is not None:
-            names = np.append(names, 'utility')
 
         erupts = erupt(y_temp, tmt, optim_tmt, weights=observation_weights,
                        names=names)
@@ -194,13 +195,12 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
         all_erupts.append(erupts)
         all_distributions.append(dist_treatments)
 
-
     for t in unique_tmts:
 
         t_rep = np.repeat(t, y.shape[0]).reshape(-1,1)
         str_obj_weight = str(t)
 
-        erupts = erupt(y, tmt.reshape(-1,1), t_rep, weights=observation_weights,
+        erupts = erupt(y_temp, tmt.reshape(-1,1), t_rep, weights=observation_weights,
                        names=names)
 
         erupts['weights'] = '-1'
