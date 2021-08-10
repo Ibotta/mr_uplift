@@ -56,10 +56,9 @@ class MRUplift(object):
 
     def fit(self, x, y, t, test_size=0.7, random_state=22, param_grid=None,
             n_jobs=-1, cv=5, optimized_loss = False, PCA_x = False, PCA_y = False, bin = False,
-            use_propensity = False, propensity_score_cutoff = 100, propensity_model = None):
+            use_propensity = False, propensity_score_cutoff = 100):
         """Fits a Neural Network Model of the form y ~ f(t,x). Creates seperate
         transformers for y, t, and x and scales each. Assigns train / test split.
-
         Args:
         x (np array or pd.dataframe): Explanatory Data of shape num_observations
           by num_explanatory_variables
@@ -79,7 +78,6 @@ class MRUplift(object):
         use_propensity (boolean): If True will use propensity scores from a RF. Best for observational data.
         propensity_score_cutoff (float): maximum weight of propensity score. If too high than it wouldn't have had
           much support in original model and should probably be exlcuded.
-
         Returns:
         Builds a neural network and assigns it to self.model
         """
@@ -159,39 +157,29 @@ class MRUplift(object):
 
         if optimized_loss:
             if use_propensity:
-                if propensity_model is not None:
-                    propensity_scores = pd.DataFrame(1/(propensity_model.oob_decision_function_+np.finfo(float).eps))
-                    propensity_scores.columns = propensity_model.classes_
 
-                    mask_tmt_locations = np.array((propensity_scores < self.propensity_score_cutoff)*1)
+                param_grid_propensity = {
+                'n_estimators': [500],
+                'max_features': ['auto'],
+                'max_depth': [1,2,4,8],
+                'oob_score' : [True],
+                'n_jobs' : [-1]
+                    }
 
-                    str_t_series = pd.Series(str_t_train)
-                    observation_weights = np.array(propensity_scores.lookup(str_t_series.index, str_t_series.values)).reshape(-1,1)
+                propensity_model = GridSearchCV(estimator=RandomForestClassifier(max_depth = 8, n_jobs = 1, oob_score = True, n_estimators = 500),
+                    param_grid=param_grid_propensity, cv=3, scoring='neg_log_loss')
+                propensity_model.fit(x_train_scaled, str_t_train)
 
-                else:
+                self.propensity_model = propensity_model.best_estimator_
+                propensity_model = propensity_model.best_estimator_
 
-                    param_grid_propensity = {
-                    'n_estimators': [500],
-                    'max_features': ['auto'],
-                    'max_depth': [1,2,4,8],
-                    'oob_score' : [True],
-                    'n_jobs' : [-1]
-                        }
+                propensity_scores = pd.DataFrame(1/(propensity_model.oob_decision_function_+np.finfo(float).eps))
+                propensity_scores.columns = propensity_model.classes_
 
-                    propensity_model = GridSearchCV(estimator=RandomForestClassifier(max_depth = 8, n_jobs = 1, oob_score = True, n_estimators = 500),
-                        param_grid=param_grid_propensity, cv=3, scoring='neg_log_loss')
-                    propensity_model.fit(x_train_scaled, str_t_train)
+                mask_tmt_locations = np.array((propensity_scores < self.propensity_score_cutoff)*1)
 
-                    self.propensity_model = propensity_model.best_estimator_
-                    propensity_model = propensity_model.best_estimator_
-
-                    propensity_scores = pd.DataFrame(1/(propensity_model.oob_decision_function_+np.finfo(float).eps))
-                    propensity_scores.columns = propensity_model.classes_
-
-                    mask_tmt_locations = np.array((propensity_scores < self.propensity_score_cutoff)*1)
-
-                    str_t_series = pd.Series(str_t_train)
-                    observation_weights = np.array(propensity_scores.lookup(str_t_series.index, str_t_series.values)).reshape(-1,1)
+                str_t_series = pd.Series(str_t_train)
+                observation_weights = np.array(propensity_scores.lookup(str_t_series.index, str_t_series.values)).reshape(-1,1)
 
             else:
                 self.propensity_model = None
@@ -230,7 +218,6 @@ class MRUplift(object):
         concatenates those two variables into an array to predict on. Finally,
         an inverse transformer is applied on predictions to transform to original
         response means and standard deviations.
-
         Args:
         x (np array or pd.dataframe): Explanatory Data of shape num_observations
           by num_explanatory_variables
@@ -239,7 +226,6 @@ class MRUplift(object):
         response_transformer (boolean): If true will use the trained scaler to transform
           responses. I've noticed that using this in production degrades performance
           becuase model optimizes scaled data.
-
         Returns:
         Predictions fitted model
         """
@@ -259,7 +245,6 @@ class MRUplift(object):
             assigned it will use test set data. Can subset to particular treatments
             using treatment assignment. Can also apply calibrator function (experimental)
             to predictions.
-
             The 'ice' refers to Individual Conditional Expectations. A better
             description of this can be found here:
             https://arxiv.org/pdf/1309.6392.pdf
@@ -301,18 +286,14 @@ class MRUplift(object):
                          propensity_score_cutoff = 100):
         """Returns ERUPT Curves and distributions of treatments. If either x or
         y or t is not inputted it will use test data.
-
         If there is only one response variable then it will assume we want to maximize the response.
         It will calculate and return the ERUPT metric and distribution of treatments.
         An introduction to ERUPT metric can be found here https://medium.com/building-ibotta/erupt-expected-response-under-proposed-treatments-ff7dd45c84b4
-
         If there are mutliple responses it will use objective_weights to create a weighted sum of response
         variables. It will then use this new weighted sum to determine optimal treatments and calculate ERUPT
         metrics accordingly. Repeatedly doing this with different weights will lead estimations of tradeoffs.
-
         ERUPT curves are described in more detail here:
         https://medium.com/building-ibotta/estimating-and-visualizing-business-tradeoffs-in-uplift-models-80ff845a5698
-
         Args:
           x (np.array): new data to predict. Will use test data if not given
           y (np.array): responses
@@ -326,7 +307,6 @@ class MRUplift(object):
           response_transformer (boolean): If true will use the trained scaler to transform
             responses. I've noticed that using this in production degrades performance
             becuase model optimizes scaled data.
-
         Returns:
           ERUPT Curves and Treatment Distributions
         """
@@ -401,7 +381,6 @@ class MRUplift(object):
     def save(self, file_location):
         """Saves MRUplift Class to location. Will save two outputs:
         keras model and rest of MRUplift class.
-
         Args:
           file_location (str): File location to save data
         Returns:
@@ -420,7 +399,6 @@ class MRUplift(object):
 
     def load(self, file_location):
         """Loads MRUplift Class from location.
-
         Args:
           file_location (str): File location to load data
         Returns:
@@ -437,7 +415,6 @@ class MRUplift(object):
                                    use_propensity_score_cutoff = True):
         """Calculates optimal treatments of model output given explanatory
             variables and weights
-
         Args:
           x (np.array): new data to predict. Will use test data if not given
           objective_weights (np.array): set of weights of length num_responses to maximize.
@@ -451,7 +428,6 @@ class MRUplift(object):
             becuase model optimizes scaled data.
           use_propensity_score_cutoff(boolean): If false it will not mask treatments for predictions based on propensity
           scores.
-
         Returns:
           Optimal Treatment Values
         """
@@ -502,7 +478,6 @@ class MRUplift(object):
         response_transformer (boolean): If true will use the trained scaler to transform
           responses. I've noticed that using this in production degrades performance
           becuase model optimizes scaled data.
-
         Args:
             None
         Returns:
@@ -531,7 +506,6 @@ class MRUplift(object):
         and then predicts and finds the optimal value given a set of weights. For each user it compares the optimal treatment of
         permuted column data with optimal treatment of non-permuted data and averages the result. The output is an index of how often
         the permuted column disagrees with unpermuted columns.
-
         Args:
           objective_weights (np.array): set of weights of length num_responses to maximize.
             is required for multi output decisions
@@ -595,7 +569,6 @@ class MRUplift(object):
         """OOS metric calculation for full range of a ranom set of objective weights.
         Idea is to calculate full range of objective functions. Here each observation
         is assigned a random objective function and the ERUPT is calculated on this.
-
         Args:
           x (np.array): new data to predict. Will use test data if not given
           y (np.array): responses
@@ -609,7 +582,6 @@ class MRUplift(object):
           response_transformer (boolean): If true will use the trained scaler to transform
             responses. I've noticed that using this in production degrades performance
             becuase model optimizes scaled data.
-
         Returns:
           mean and standardization of ERUPT
         """
