@@ -6,7 +6,7 @@ from tensorflow.keras.models import load_model
 from mr_uplift.keras_model_functionality import train_model_multi_output_w_tmt, gridsearch_mo_optim, get_random_weights, treatments_to_text
 from mr_uplift.erupt import get_erupts_curves_aupc, get_best_tmts, erupt, get_weights, softmax
 
-from keras.wrappers.scikit_learn import KerasRegressor
+from tensorflow.keras.wrappers.scikit_learn import KerasRegressor
 from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer, FunctionTransformer
 from sklearn.decomposition import PCA
@@ -56,7 +56,7 @@ class MRUplift(object):
 
     def fit(self, x, y, t, test_size=0.7, random_state=22, param_grid=None,
             n_jobs=-1, cv=5, optimized_loss = False, PCA_x = False, PCA_y = False, bin = False,
-            use_propensity = False, propensity_score_cutoff = 100):
+            use_propensity = False, propensity_score_cutoff = 100, propensity_model = None):
         """Fits a Neural Network Model of the form y ~ f(t,x). Creates seperate
         transformers for y, t, and x and scales each. Assigns train / test split.
 
@@ -159,29 +159,39 @@ class MRUplift(object):
 
         if optimized_loss:
             if use_propensity:
+                if propensity_model is not None:
+                    propensity_scores = pd.DataFrame(1/(propensity_model.oob_decision_function_+np.finfo(float).eps))
+                    propensity_scores.columns = propensity_model.classes_
 
-                param_grid_propensity = {
-                'n_estimators': [500],
-                'max_features': ['auto'],
-                'max_depth': [1,2,4,8],
-                'oob_score' : [True],
-                'n_jobs' : [-1]
-                    }
+                    mask_tmt_locations = np.array((propensity_scores < self.propensity_score_cutoff)*1)
 
-                propensity_model = GridSearchCV(estimator=RandomForestClassifier(max_depth = 8, n_jobs = 1, oob_score = True, n_estimators = 500),
-                    param_grid=param_grid_propensity, cv=3, scoring='neg_log_loss')
-                propensity_model.fit(x_train_scaled, str_t_train)
+                    str_t_series = pd.Series(str_t_train)
+                    observation_weights = np.array(propensity_scores.lookup(str_t_series.index, str_t_series.values)).reshape(-1,1)
 
-                self.propensity_model = propensity_model.best_estimator_
-                propensity_model = propensity_model.best_estimator_
+                else:
 
-                propensity_scores = pd.DataFrame(1/(propensity_model.oob_decision_function_+np.finfo(float).eps))
-                propensity_scores.columns = propensity_model.classes_
+                    param_grid_propensity = {
+                    'n_estimators': [500],
+                    'max_features': ['auto'],
+                    'max_depth': [1,2,4,8],
+                    'oob_score' : [True],
+                    'n_jobs' : [-1]
+                        }
 
-                mask_tmt_locations = np.array((propensity_scores < self.propensity_score_cutoff)*1)
+                    propensity_model = GridSearchCV(estimator=RandomForestClassifier(max_depth = 8, n_jobs = 1, oob_score = True, n_estimators = 500),
+                        param_grid=param_grid_propensity, cv=3, scoring='neg_log_loss')
+                    propensity_model.fit(x_train_scaled, str_t_train)
 
-                str_t_series = pd.Series(str_t_train)
-                observation_weights = np.array(propensity_scores.lookup(str_t_series.index, str_t_series.values)).reshape(-1,1)
+                    self.propensity_model = propensity_model.best_estimator_
+                    propensity_model = propensity_model.best_estimator_
+
+                    propensity_scores = pd.DataFrame(1/(propensity_model.oob_decision_function_+np.finfo(float).eps))
+                    propensity_scores.columns = propensity_model.classes_
+
+                    mask_tmt_locations = np.array((propensity_scores < self.propensity_score_cutoff)*1)
+
+                    str_t_series = pd.Series(str_t_train)
+                    observation_weights = np.array(propensity_scores.lookup(str_t_series.index, str_t_series.values)).reshape(-1,1)
 
             else:
                 self.propensity_model = None
