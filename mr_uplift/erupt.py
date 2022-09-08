@@ -195,19 +195,19 @@ def get_erupts_curves_aupc(y, tmt, ice, unique_tmts, objective_weights,
         all_erupts.append(erupts)
         all_distributions.append(dist_treatments)
 
-    for t in unique_tmts:
+        for t in unique_tmts:
 
-        t_rep = np.repeat(t, y.shape[0]).reshape(-1,1)
-        str_obj_weight = str(t)
+            t_rep = np.repeat(t, y.shape[0]).reshape(-1,1)
+            str_obj_weight = str(t)
 
-        erupts = erupt(y_temp, tmt.reshape(-1,1), t_rep, weights=observation_weights,
-                       names=names)
+            erupts = erupt(y_temp, tmt.reshape(-1,1), t_rep, weights=observation_weights,
+                           names=names)
 
-        erupts['weights'] = '-1'
-        erupts['treatment'] = str_obj_weight
-        erupts['assignment'] = 'ate'
+            erupts['weights'] = '-1'
+            erupts['treatment'] = str_obj_weight
+            erupts['assignment'] = 'ate'
 
-        all_erupts.append(erupts)
+            all_erupts.append(erupts)
 
     all_erupts = pd.concat(all_erupts)
     all_distributions = pd.concat(all_distributions)
