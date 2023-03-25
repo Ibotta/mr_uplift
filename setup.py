@@ -52,7 +52,7 @@ setup(name=DISTNAME,
       install_requires=[
           'numpy>1.17.2',
           'pandas>=0.20.0',
-          'tensorflow==2.4.1',
+          'tensorflow==2.11.1',
           'keras',
           'dill',
           'sklearn'
